@@ -13,6 +13,7 @@ import { CryptoModule } from './crypto/crypto.module';
 import { DevicesModule } from './devices/devices.module';
 import { DosesModule } from './doses/doses.module';
 import { MedicationsModule } from './medications/medications.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RobotSettingsModule } from './robot-settings/robot-settings.module';
 import { UsersModule } from './users/users.module';
@@ -26,6 +27,7 @@ import { UsersModule } from './users/users.module';
     CryptoModule,
     AiModule,
     AuthModule,
+    NotificationsModule,
     UsersModule,
     RobotSettingsModule,
     MedicationsModule,

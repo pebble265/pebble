@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CaretakersService } from '../caretakers/caretakers.service';
+import { NotifyService } from '../notifications/notify.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Only alerts newer than this get delivered (avoids flooding after downtime). */
@@ -15,9 +16,12 @@ const MESSAGES: Record<string, string> = {
 
 @Injectable()
 export class AlertsService {
+  private readonly logger = new Logger(AlertsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly caretakers: CaretakersService,
+    private readonly notify: NotifyService,
   ) {}
 
   // =====================================================================
@@ -26,22 +30,21 @@ export class AlertsService {
 
   /**
    * Finds alerts nobody has been told about yet and records who should see
-   * them: the user themself + caretakers whose permissions allow that type.
-   * Sending the actual push notification is added in a later step; it will
-   * read these delivery rows.
+   * them: the user themself + caretakers whose permissions allow that type,
+   * then sends push notifications and realtime events to each of them.
    */
   async dispatchPending(): Promise<number> {
     const since = new Date(Date.now() - DISPATCH_WINDOW_HOURS * 60 * 60 * 1000);
     const pending = await this.prisma.alerts.findMany({
       where: { created_at: { gte: since }, alert_deliveries: { none: {} } },
-      select: { id: true, user_id: true, type: true },
+      select: { id: true, user_id: true, type: true, severity: true, created_at: true },
       orderBy: { created_at: 'asc' },
       take: 200,
     });
 
     for (const a of pending) {
       const recipients = await this.caretakers.recipientsFor(a.user_id, a.type);
-      await this.prisma.alert_deliveries.createMany({
+      const rows = await this.prisma.alert_deliveries.createManyAndReturn({
         data: [
           { alert_id: a.id, caretaker_link_id: null, channel: 'push' },
           ...recipients.map((r) => ({
@@ -50,7 +53,29 @@ export class AlertsService {
             channel: 'push',
           })),
         ],
+        select: { id: true, caretaker_link_id: true },
       });
+
+      const caretakerOf = new Map(recipients.map((r) => [r.linkId, r.caretakerUserId]));
+      try {
+        await this.notify.alert({
+          alertId: a.id,
+          userId: a.user_id,
+          type: a.type,
+          severity: a.severity,
+          createdAt: a.created_at,
+          deliveries: rows.map((r) => ({
+            deliveryId: r.id,
+            linkId: r.caretaker_link_id,
+            caretakerUserId: r.caretaker_link_id
+              ? (caretakerOf.get(r.caretaker_link_id) ?? null)
+              : null,
+          })),
+        });
+      } catch (e) {
+        // Delivery rows are saved; the inbox still shows the alert even if push failed.
+        this.logger.error(`Notify failed for alert ${a.id}: ${(e as Error).message}`);
+      }
     }
     return pending.length;
   }
