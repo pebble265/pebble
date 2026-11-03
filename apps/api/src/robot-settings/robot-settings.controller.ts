@@ -4,9 +4,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../auth/jwt-auth.guard';
 import { UpdateRobotSettingsDto } from './dto/robot-settings.dto';
 import { RobotSettingsService } from './robot-settings.service';
+import { ConsentGuard } from '../privacy/consent.guard';
 
 @Controller('robot-settings')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ConsentGuard)
 export class RobotSettingsController {
   constructor(private readonly settings: RobotSettingsService) {}
 

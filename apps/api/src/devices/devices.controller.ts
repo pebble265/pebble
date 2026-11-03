@@ -15,10 +15,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../auth/jwt-auth.guard';
 import { DevicesService } from './devices.service';
 import { PairDeviceDto } from './dto/devices.dto';
+import { ConsentGuard } from '../privacy/consent.guard';
 
 /** Routes the MOBILE APP calls (user token). */
 @Controller('devices')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard, ConsentGuard, ThrottlerGuard)
 export class DevicesController {
   constructor(private readonly devices: DevicesService) {}
 

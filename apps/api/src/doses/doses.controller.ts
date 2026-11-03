@@ -14,9 +14,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../auth/jwt-auth.guard';
 import { DosesService } from './doses.service';
 import { DoseActionDto, HistoryQueryDto } from './dto/dose.dto';
+import { ConsentGuard } from '../privacy/consent.guard';
 
 @Controller('doses')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ConsentGuard)
 export class DosesController {
   constructor(private readonly doses: DosesService) {}
 

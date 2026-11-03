@@ -17,10 +17,11 @@ import { CurrentDevice, DeviceAuthGuard } from '../devices/device-auth.guard';
 import type { AuthDevice } from '../devices/device-auth.guard';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/chat.dto';
+import { ConsentGuard, OwnerConsentGuard } from '../privacy/consent.guard';
 
 /** Chat from the mobile app. */
 @Controller('chat')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard, ConsentGuard, ThrottlerGuard)
 export class ChatController {
   constructor(private readonly chat: ChatService) {}
 
@@ -68,7 +69,7 @@ export class ChatController {
 
 /** Chat from the robot (device token). */
 @Controller('robot/chat')
-@UseGuards(DeviceAuthGuard, ThrottlerGuard)
+@UseGuards(DeviceAuthGuard, OwnerConsentGuard, ThrottlerGuard)
 export class RobotChatController {
   constructor(private readonly chat: ChatService) {}
 

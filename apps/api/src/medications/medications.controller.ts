@@ -16,9 +16,10 @@ import type { AuthUser } from '../auth/jwt-auth.guard';
 import { CreateMedicationDto } from './dto/create-medication.dto';
 import { UpdateMedicationDto } from './dto/update-medication.dto';
 import { MedicationsService } from './medications.service';
+import { ConsentGuard } from '../privacy/consent.guard';
 
 @Controller('medications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ConsentGuard)
 export class MedicationsController {
   constructor(private readonly meds: MedicationsService) {}
 

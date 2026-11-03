@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { DosesService } from '../doses/doses.service';
+import { OwnerConsentGuard } from '../privacy/consent.guard';
 import { CurrentDevice, DeviceAuthGuard } from './device-auth.guard';
 import type { AuthDevice } from './device-auth.guard';
 import { DevicesService } from './devices.service';
@@ -56,7 +57,7 @@ export class RobotController {
 
   /** GET /robot/doses/today — the owner's doses for today */
   @Get('doses/today')
-  @UseGuards(DeviceAuthGuard)
+  @UseGuards(DeviceAuthGuard, OwnerConsentGuard)
   todayDoses(@CurrentDevice() device: AuthDevice) {
     return this.doses.today(this.devices.requireOwner(device));
   }
@@ -64,7 +65,7 @@ export class RobotController {
   /** POST /robot/doses/:id/dispensed — pill was ejected */
   @Post('doses/:id/dispensed')
   @HttpCode(200)
-  @UseGuards(DeviceAuthGuard)
+  @UseGuards(DeviceAuthGuard, OwnerConsentGuard)
   dispensed(
     @CurrentDevice() device: AuthDevice,
     @Param('id', ParseUUIDPipe) id: string,
@@ -75,7 +76,7 @@ export class RobotController {
   /** POST /robot/doses/:id/take  { via: "robot_button" | "robot_sensor" } */
   @Post('doses/:id/take')
   @HttpCode(200)
-  @UseGuards(DeviceAuthGuard)
+  @UseGuards(DeviceAuthGuard, OwnerConsentGuard)
   take(
     @CurrentDevice() device: AuthDevice,
     @Param('id', ParseUUIDPipe) id: string,

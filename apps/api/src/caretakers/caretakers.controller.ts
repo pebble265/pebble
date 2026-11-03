@@ -21,10 +21,11 @@ import {
   InviteTokenDto,
   PermissionsDto,
 } from './dto/caretakers.dto';
+import { ConsentGuard, RequireConsents } from '../privacy/consent.guard';
 
 /** The person being cared for manages their caretakers here. */
 @Controller('caretakers')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard, ConsentGuard, ThrottlerGuard)
 export class CaretakersController {
   constructor(private readonly care: CaretakersService) {}
 
@@ -64,7 +65,8 @@ export class CaretakersController {
 
 /** The caretaker's side. */
 @Controller('caretaking')
-@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@UseGuards(JwtAuthGuard, ConsentGuard, ThrottlerGuard)
+@RequireConsents('terms')
 export class CaretakingController {
   constructor(private readonly care: CaretakersService) {}
 
