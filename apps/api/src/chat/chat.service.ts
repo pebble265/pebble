@@ -11,6 +11,7 @@ import { addDays, localDateOf, zonedToUtc } from '../common/time';
 import { CryptoService } from '../crypto/crypto.service';
 import { DosesService } from '../doses/doses.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { isConsentActive } from '../privacy/consent';
 import {
   isCrisis,
   SAFE_CRISIS_REPLY,
@@ -142,14 +143,28 @@ export class ChatService implements OnModuleDestroy {
   }
 
   private async finish(conversationId: string) {
+    try {
+      await this.finishUnsafe(conversationId);
+    } catch (e) {
+      // e.g. the account or conversation was deleted while the session was open
+      this.logger.warn(`Could not close ${conversationId}: ${(e as Error).message}`);
+    }
+  }
+
+  private async finishUnsafe(conversationId: string) {
     const session = this.sessions.get(conversationId);
     this.sessions.delete(conversationId);
+
+    const memoryAllowed = session
+      ? await isConsentActive(this.prisma, session.userId, 'conversation_memory')
+      : true;
 
     let summary: string | null = null;
     let mood: number | null = null;
     let memories: string[] = [];
 
-    if (session && session.turns.length) {
+    // User turned memory off: don't even send the transcript for summarising.
+    if (session && session.turns.length && memoryAllowed) {
       try {
         const transcript = session.turns
           .map((t) => `${t.role === 'user' ? 'USER' : 'ROBOT'}: ${t.content}`)
@@ -186,8 +201,10 @@ export class ChatService implements OnModuleDestroy {
           where: { conversation_id: conversationId },
           create: {
             conversation_id: conversationId,
-            summary_enc: this.crypto.encrypt(summary ?? '(ไม่มีสรุป)'),
-            mood_score: mood,
+            summary_enc: this.crypto.encrypt(
+              memoryAllowed ? (summary ?? '(ไม่มีสรุป)') : '(ผู้ใช้ปิดการจดจำบทสนทนา)',
+            ),
+            mood_score: memoryAllowed ? mood : null,
             risk_flagged: !!session?.crisis,
           },
           update: {},
@@ -340,14 +357,16 @@ export class ChatService implements OnModuleDestroy {
     // Make sure today's doses exist even if a medication was added minutes ago.
     if (user.uses_medication) await this.doses.ensureDoseEvents(userId, tz, today, 1);
 
+    const memoryAllowed = await isConsentActive(this.prisma, userId, 'conversation_memory');
+
     const [memRows, sumRows, doses] = await Promise.all([
-      this.prisma.companion_memories.findMany({
+      !memoryAllowed ? Promise.resolve([]) : this.prisma.companion_memories.findMany({
         where: { user_id: userId },
         orderBy: { created_at: 'desc' },
         take: 20,
         select: { content_enc: true },
       }),
-      this.prisma.conversation_summaries.findMany({
+      !memoryAllowed ? Promise.resolve([]) : this.prisma.conversation_summaries.findMany({
         where: { conversations: { user_id: userId, deleted_at: null } },
         orderBy: { created_at: 'desc' },
         take: 3,

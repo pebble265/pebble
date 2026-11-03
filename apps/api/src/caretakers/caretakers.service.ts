@@ -8,6 +8,7 @@ import {
 import { createHash, randomBytes } from 'crypto';
 import { addDays, localDateOf, zonedToUtc } from '../common/time';
 import { PrismaService } from '../prisma/prisma.service';
+import { isConsentActive } from '../privacy/consent';
 import { CreateInviteDto, PermissionsDto } from './dto/caretakers.dto';
 import {
   ALERT_PERMISSION,
@@ -29,6 +30,11 @@ export class CaretakersService {
   // =====================================================================
 
   async createInvite(userId: string, dto: CreateInviteDto) {
+    if (!(await isConsentActive(this.prisma, userId, 'caretaker_sharing'))) {
+      throw new ForbiddenException(
+        'Sharing with caretakers is turned off. Turn it on first (POST /privacy/consents/caretaker_sharing/grant).',
+      );
+    }
     const me = await this.prisma.users.findUniqueOrThrow({
       where: { id: userId },
       select: { email: true },
@@ -276,6 +282,7 @@ export class CaretakersService {
   async recipientsFor(userId: string, alertType: string) {
     const flag = ALERT_PERMISSION[alertType];
     if (!flag) return [];
+    if (!(await isConsentActive(this.prisma, userId, 'caretaker_sharing'))) return [];
     const links = await this.prisma.caretaker_links.findMany({
       where: { user_id: userId, status: 'accepted', caretaker_user_id: { not: null } },
       include: { caretaker_permissions: true },
