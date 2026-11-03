@@ -11,8 +11,9 @@ export interface AuthUser {
 }
 
 /**
- * Protects a route with the access token.
+ * Protects a route with a USER access token.
  * Client sends:  Authorization: Bearer <accessToken>
+ * Robot (device) tokens are rejected here; robots use DeviceAuthGuard.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -26,12 +27,15 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException();
     }
 
+    let payload: { sub: string; typ?: string };
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: string }>(token);
-      req.user = { id: payload.sub } satisfies AuthUser;
-      return true;
+      payload = await this.jwt.verifyAsync(token);
     } catch {
       throw new UnauthorizedException();
     }
+    if (payload.typ === 'device') throw new UnauthorizedException();
+
+    req.user = { id: payload.sub } satisfies AuthUser;
+    return true;
   }
 }

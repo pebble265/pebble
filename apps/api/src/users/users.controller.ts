@@ -1,46 +1,42 @@
 import {
+  Body,
   Controller,
   Get,
-  NotFoundException,
+  HttpCode,
+  Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../auth/jwt-auth.guard';
-import { PrismaService } from '../prisma/prisma.service';
+import { CompleteOnboardingDto, UpdateProfileDto } from './dto/users.dto';
+import { UsersService } from './users.service';
 
-@Controller('users')
+@Controller('users/me')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly users: UsersService) {}
 
-  /** GET /users/me  (needs Authorization: Bearer <accessToken>) */
-  @Get('me')
-  async me(@CurrentUser() current: AuthUser) {
-    const user = await this.prisma.users.findFirst({
-      where: { id: current.id, deleted_at: null },
-      select: {
-        id: true,
-        email: true,
-        display_name: true,
-        locale: true,
-        timezone: true,
-        uses_medication: true,
-        onboarded_at: true,
-        created_at: true,
-      },
-    });
-    if (!user) throw new NotFoundException();
+  /** GET /users/me */
+  @Get()
+  me(@CurrentUser() user: AuthUser) {
+    return this.users.me(user.id);
+  }
 
-    return {
-      id: user.id,
-      email: user.email,
-      displayName: user.display_name,
-      locale: user.locale,
-      timezone: user.timezone,
-      usesMedication: user.uses_medication,
-      onboardedAt: user.onboarded_at,
-      createdAt: user.created_at,
-    };
+  /** PATCH /users/me  { displayName?, timezone?, locale? } */
+  @Patch()
+  update(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
+    return this.users.update(user.id, dto);
+  }
+
+  /** POST /users/me/onboarding  { acceptTerms: true, acceptHealthData: true } */
+  @Post('onboarding')
+  @HttpCode(200)
+  completeOnboarding(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CompleteOnboardingDto,
+  ) {
+    return this.users.completeOnboarding(user.id, dto);
   }
 }
