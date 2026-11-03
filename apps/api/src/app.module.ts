@@ -2,11 +2,13 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { AiModule } from './ai/ai.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { CaretakersModule } from './caretakers/caretakers.module';
+import { ChatModule } from './chat/chat.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { DevicesModule } from './devices/devices.module';
 import { DosesModule } from './doses/doses.module';
@@ -22,6 +24,7 @@ import { UsersModule } from './users/users.module';
     ScheduleModule.forRoot(), // background jobs
     PrismaModule,
     CryptoModule,
+    AiModule,
     AuthModule,
     UsersModule,
     RobotSettingsModule,
@@ -30,6 +33,7 @@ import { UsersModule } from './users/users.module';
     DevicesModule,
     CaretakersModule,
     AlertsModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
