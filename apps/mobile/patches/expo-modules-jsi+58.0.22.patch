@@ -1,0 +1,15 @@
+diff --git a/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift b/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
+--- a/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
++++ b/node_modules/expo-modules-jsi/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
+@@ -941,8 +941,11 @@
+     }
+     // The runtime can't be deallocated during a call on its JavaScript thread, so it's borrowed without
+     // a retain.
++    // Pass the address as an integer so the isolated closure doesn't capture a non-Sendable pointer.
++    let slotAddress = UInt(bitPattern: slot)
+     try runtime._withUnsafeGuaranteedRef { runtime in
+       try JavaScriptActor.assumeIsolated {
++        let slot = UnsafeMutablePointer<facebook.jsi.Value>(bitPattern: slotAddress)!
+         try encode(JavaScriptValue.Slot(slot), runtime)
+       }
+     }

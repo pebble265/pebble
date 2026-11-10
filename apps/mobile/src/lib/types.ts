@@ -91,3 +91,29 @@ export interface RobotSettings {
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
 }
+
+export interface MoodEntry {
+  id: string;
+  score: number;
+  label: string;
+  source: string;
+  createdAt: string;
+  date?: string;
+}
+
+export interface MoodList {
+  timezone: string;
+  today: MoodEntry | null;
+  entries: MoodEntry[];
+}
+
+export interface Device {
+  id: string;
+  serialNumber: string;
+  status: 'unpaired' | 'online' | 'offline' | 'charging' | 'error';
+  batteryLevel: number | null;
+  firmwareVersion: string | null;
+  pillSlots: number;
+  lastSeenAt: string | null;
+  pairedAt: string | null;
+}

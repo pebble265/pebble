@@ -36,7 +36,7 @@ export class PrivacyService {
 
     const [
       user, consents, settings, contacts, meds, doses, devices,
-      myCaretakers, caringFor, conversations, memories, alerts, tokens, accessLog,
+      myCaretakers, caringFor, conversations, memories, alerts, tokens, accessLog, moods,
     ] = await Promise.all([
       p.users.findUniqueOrThrow({ where: { id: userId } }),
       p.consents.findMany({ where: { user_id: userId }, orderBy: { granted_at: 'asc' } }),
@@ -60,6 +60,7 @@ export class PrivacyService {
       p.alerts.findMany({ where: { user_id: userId }, orderBy: { created_at: 'asc' } }),
       p.push_tokens.findMany({ where: { user_id: userId } }),
       p.audit_logs.findMany({ where: { target_user_id: userId }, orderBy: { created_at: 'asc' } }),
+      p.mood_checkins.findMany({ where: { user_id: userId }, orderBy: { created_at: 'asc' } }),
     ]);
 
     const otherIds = [
@@ -138,6 +139,11 @@ export class PrivacyService {
         confirmedAt: d.confirmed_at,
         confirmedVia: d.confirmed_via,
         note: d.note,
+      })),
+      moodCheckins: moods.map((m) => ({
+        score: m.score,
+        source: m.source,
+        createdAt: m.created_at,
       })),
       robots: devices.map((d) => ({
         serialNumber: d.serial_number,

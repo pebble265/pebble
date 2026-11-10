@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRef, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,10 +15,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ErrorText } from '../../components/ui';
+import { TAB_BAR_SPACE, useKeyboardVisible } from '../../components/tab-bar';
+import { ErrorText, RobotFace } from '../../components/ui';
 import { ApiError, api, errorText } from '../../lib/api';
 import type { ChatReply } from '../../lib/types';
-import { colors, radius, space, type } from '../../theme';
+import { colors, gradients, radius, shadow, space, type } from '../../theme';
 
 interface Msg {
   id: number;
@@ -73,11 +75,23 @@ export default function Chat() {
   const conversationId = useRef<string | null>(null);
   const nextId = useRef(1);
   const scroll = useRef<ScrollViewInstance>(null);
+  const keyboard = useKeyboardVisible();
 
-  async function send() {
-    const text = input.trim();
+  // A message typed into "Quick chat" on the Home screen arrives as ?q=...
+  const { q, t } = useLocalSearchParams<{ q?: string; t?: string }>();
+  const handled = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (q && t && handled.current !== t) {
+      handled.current = t;
+      send(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, t]);
+
+  async function send(preset?: string) {
+    const text = (preset ?? input).trim();
     if (!text || sending) return;
-    setInput('');
+    if (preset === undefined) setInput('');
     setError('');
     setMessages((m) => [...m, { id: nextId.current++, from: 'me', text }]);
     setSending(true);
@@ -114,17 +128,14 @@ export default function Chat() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <View style={styles.eye} />
-          <View style={styles.eye} />
-        </View>
+        <RobotFace size={42} awake />
         <View style={{ flex: 1 }}>
-          <Text style={type.heading}>Pebble</Text>
+          <Text style={type.heading}>Pebbi</Text>
           <Text style={type.small}>{sending ? 'กำลังพิมพ์…' : 'อยู่ตรงนี้เสมอ'}</Text>
         </View>
         <Pressable onPress={endConversation} accessibilityRole="button" style={styles.newBtn}>
-          <Ionicons name="refresh" size={16} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontWeight: '600' }}>เรื่องใหม่</Text>
+          <Ionicons name="refresh" size={16} color={colors.blue} />
+          <Text style={{ color: colors.blue, fontWeight: '600' }}>เรื่องใหม่</Text>
         </Pressable>
       </View>
 
@@ -162,19 +173,19 @@ export default function Chat() {
             style={styles.input}
             multiline
             maxLength={2000}
-            onSubmitEditing={Platform.OS === 'web' ? send : undefined}
+            onSubmitEditing={Platform.OS === 'web' ? () => send() : undefined}
             blurOnSubmit={Platform.OS === 'web'}
           />
           <Pressable
-            onPress={send}
+            onPress={() => send()}
             disabled={!input.trim() || sending}
             accessibilityRole="button"
             accessibilityLabel="ส่ง"
             style={[styles.send, (!input.trim() || sending) && { opacity: 0.4 }]}>
-            <Ionicons name="arrow-up" size={22} color={colors.primaryText} />
+            <Ionicons name="paper-plane" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
-        <Text style={styles.disclaimer}>Pebble เป็นเพื่อนคุย ไม่ใช่แพทย์ · ฉุกเฉินโทร 1669</Text>
+        <Text style={[styles.disclaimer, { marginBottom: keyboard ? 0 : TAB_BAR_SPACE - 14 }]}>Pebbi เป็นเพื่อนคุย ไม่ใช่แพทย์ · ฉุกเฉินโทร 1669</Text>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -190,17 +201,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  avatar: {
-    width: 44,
-    height: 38,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  eye: { width: 6, height: 9, borderRadius: 3, backgroundColor: colors.primaryText },
   newBtn: {
     flexDirection: 'row',
     gap: 4,
@@ -208,16 +208,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.blueSoft,
   },
   list: { padding: space.lg, gap: space.sm, maxWidth: 680, width: '100%', alignSelf: 'center' },
   bubble: { maxWidth: '82%', paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.lg },
-  mine: { alignSelf: 'flex-end', backgroundColor: colors.primary, borderBottomRightRadius: 6 },
+  mine: { alignSelf: 'flex-end', backgroundColor: colors.blue, backgroundImage: gradients.pill, borderBottomRightRadius: 6 },
   theirs: {
     alignSelf: 'flex-start',
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    boxShadow: shadow.soft,
     borderBottomLeftRadius: 6,
   },
   inputBar: {
@@ -244,8 +243,8 @@ const styles = StyleSheet.create({
   send: {
     width: 46,
     height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.primary,
+    borderRadius: 14,
+    backgroundColor: colors.red,
     alignItems: 'center',
     justifyContent: 'center',
   },

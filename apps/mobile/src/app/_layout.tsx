@@ -1,8 +1,9 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Splash } from '../components/splash';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { colors } from '../theme';
 
@@ -14,9 +15,18 @@ export default function RootLayout() {
       <AuthProvider>
         <StatusBar style="dark" />
         <RootNavigator />
+        <SplashGate />
       </AuthProvider>
     </SafeAreaProvider>
   );
+}
+
+/** Branded splash on top of everything until the session check is done. */
+function SplashGate() {
+  const { isLoading } = useAuth();
+  const [shown, setShown] = useState(true);
+  const done = useCallback(() => setShown(false), []);
+  return shown ? <Splash ready={!isLoading} onDone={done} /> : null;
 }
 
 /**
@@ -27,10 +37,6 @@ export default function RootLayout() {
  */
 function RootNavigator() {
   const { isLoading, user } = useAuth();
-
-  useEffect(() => {
-    if (!isLoading) SplashScreen.hideAsync();
-  }, [isLoading]);
 
   if (isLoading) return null;
 
@@ -54,15 +60,10 @@ function RootNavigator() {
 
       <Stack.Protected guard={ready}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="medication-new" options={{ presentation: 'modal' }} />
         <Stack.Screen
-          name="medication-new"
-          options={{
-            presentation: 'modal',
-            headerShown: true,
-            title: 'เพิ่มยา',
-            headerStyle: { backgroundColor: colors.bg },
-            headerTintColor: colors.primary,
-          }}
+          name="schedule"
+          options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
         />
       </Stack.Protected>
     </Stack>

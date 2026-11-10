@@ -286,3 +286,16 @@ CREATE TRIGGER trg_users_updated          BEFORE UPDATE ON users                
 CREATE TRIGGER trg_robot_settings_updated BEFORE UPDATE ON robot_settings        FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_medications_updated    BEFORE UPDATE ON medications           FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER trg_ct_perms_updated       BEFORE UPDATE ON caretaker_permissions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Pebble(a): quick emotional check-ins (the emoji row on the Home screen).
+-- Safe to run more than once.
+CREATE TABLE IF NOT EXISTS mood_checkins (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    score       SMALLINT NOT NULL CHECK (score BETWEEN 1 AND 7),  -- 1 = very low ... 7 = great
+    source      VARCHAR(20) NOT NULL DEFAULT 'app',              -- app | robot
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mood_checkins_user_time
+    ON mood_checkins (user_id, created_at DESC);

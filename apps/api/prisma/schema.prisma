@@ -284,6 +284,7 @@ model users {
   push_tokens                                              push_tokens[]
   refresh_tokens                                           refresh_tokens[]
   robot_settings                                           robot_settings?
+  mood_checkins                                            mood_checkins[]
 }
 
 enum alert_severity {
@@ -333,4 +334,15 @@ enum push_platform {
   ios
   android
   robot
+}
+
+model mood_checkins {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  score      Int      @db.SmallInt
+  source     String   @default("app") @db.VarChar(20)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)], map: "idx_mood_checkins_user_time")
 }

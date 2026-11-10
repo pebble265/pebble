@@ -1,18 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TAB_BAR_SPACE } from '../../components/tab-bar';
 import { Button, Card, Chip, confirm, type IconName } from '../../components/ui';
-import { api, API_URL } from '../../lib/api';
+import { API_URL } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import type { RobotSettings } from '../../lib/types';
 import { colors, space, type } from '../../theme';
 
 function Row({ icon, title, detail, soon }: { icon: IconName; title: string; detail?: string; soon?: boolean }) {
   return (
     <View style={styles.row}>
-      <Ionicons name={icon} size={22} color={soon ? colors.muted : colors.primary} />
+      <Ionicons name={icon} size={22} color={soon ? colors.muted : colors.blue} />
       <View style={{ flex: 1 }}>
         <Text style={[type.body, soon && { color: colors.muted }]}>{title}</Text>
         {detail ? <Text style={type.small}>{detail}</Text> : null}
@@ -30,13 +28,6 @@ function initial(name: string) {
 
 export default function Me() {
   const { user, signOut } = useAuth();
-  const [robot, setRobot] = useState<RobotSettings | null>(null);
-
-  useFocusEffect(
-    useCallback(() => {
-      api<RobotSettings>('/robot-settings').then(setRobot).catch(() => {});
-    }, []),
-  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
@@ -58,8 +49,6 @@ export default function Me() {
         </Card>
 
         <Card>
-          <Row icon="hardware-chip-outline" title={`หุ่น ${robot?.robotName ?? 'Pebble'}`} detail="จับคู่หุ่นและตั้งค่าเสียง" soon />
-          <View style={styles.sep} />
           <Row icon="people-outline" title="ผู้ดูแล" detail="เชิญคนที่ไว้ใจให้ช่วยดูแล" soon />
           <View style={styles.sep} />
           <Row icon="shield-checkmark-outline" title="ความเป็นส่วนตัว" detail="ดาวน์โหลดหรือลบข้อมูล" soon />
@@ -80,13 +69,13 @@ export default function Me() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: space.xl, gap: space.lg, maxWidth: 640, width: '100%', alignSelf: 'center' },
+  page: { padding: space.xl, paddingBottom: TAB_BAR_SPACE + 10, gap: space.lg, maxWidth: 640, width: '100%', alignSelf: 'center' },
   profile: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   avatar: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.blue,
     alignItems: 'center',
     justifyContent: 'center',
   },
