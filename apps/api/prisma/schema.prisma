@@ -211,6 +211,7 @@ model medications {
   instructions_enc     Bytes?
   dispenser_slot       Int?                   @db.SmallInt
   pills_remaining      Int?
+  alarm_sound          String                 @default("radial") @db.VarChar(32)
   is_active            Boolean                @default(true)
   created_at           DateTime               @default(now()) @db.Timestamptz(6)
   updated_at           DateTime               @default(now()) @db.Timestamptz(6)
@@ -267,6 +268,13 @@ model users {
   timezone                                                 String               @default("Asia/Bangkok") @db.VarChar(50)
   uses_medication                                          Boolean              @default(false)
   onboarded_at                                             DateTime?            @db.Timestamptz(6)
+  pronunciation                                            String?              @db.VarChar(100)
+  sex                                                      String?              @db.VarChar(10)
+  birth_year                                               Int?                 @db.SmallInt
+  phone                                                    String?              @db.VarChar(30)
+  avatar_enc                                               Bytes?
+  medical_enc                                              Bytes?
+  robot_setup_at                                           DateTime?            @db.Timestamptz(6)
   created_at                                               DateTime             @default(now()) @db.Timestamptz(6)
   updated_at                                               DateTime             @default(now()) @db.Timestamptz(6)
   deleted_at                                               DateTime?            @db.Timestamptz(6)
@@ -285,6 +293,8 @@ model users {
   refresh_tokens                                           refresh_tokens[]
   robot_settings                                           robot_settings?
   mood_checkins                                            mood_checkins[]
+  auth_identities                                          auth_identities[]
+  password_resets                                          password_resets[]
 }
 
 enum alert_severity {
@@ -341,8 +351,38 @@ model mood_checkins {
   user_id    String   @db.Uuid
   score      Int      @db.SmallInt
   source     String   @default("app") @db.VarChar(20)
+  note_enc   Bytes?
   created_at DateTime @default(now()) @db.Timestamptz(6)
   users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id, created_at(sort: Desc)], map: "idx_mood_checkins_user_time")
+}
+
+model auth_identities {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String    @db.Uuid
+  provider      String    @db.VarChar(20)
+  subject       String    @db.VarChar(255)
+  email         String?   @db.Citext
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  last_login_at DateTime? @db.Timestamptz(6)
+  users         users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([provider, subject])
+  @@index([user_id], map: "idx_auth_identities_user")
+}
+
+model password_resets {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String    @db.Uuid
+  code_hash        String    @db.VarChar(64)
+  attempts         Int       @default(0) @db.SmallInt
+  expires_at       DateTime  @db.Timestamptz(6)
+  reset_token_hash String?   @unique @db.VarChar(64)
+  reset_expires_at DateTime? @db.Timestamptz(6)
+  used_at          DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  users            users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)], map: "idx_password_resets_user")
 }

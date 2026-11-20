@@ -20,6 +20,9 @@ import { PrismaService } from '../prisma/prisma.service';
  * Events sent by the server:
  *   "alert"          to the user and to caretakers allowed to see it
  *   "dose:due"       to the user and their robots when a dose is due
+ *   "robot:command"  to a robot, from the app's "pebble" tab:
+ *                    { action: "wake" | "forward" | "backward" | "stop", at: ISO time }
+ *                    forward/backward = keep moving until "stop" (sent when the button is released)
  */
 @WebSocketGateway({ namespace: '/realtime', cors: { origin: true } })
 export class RealtimeGateway implements OnGatewayConnection {

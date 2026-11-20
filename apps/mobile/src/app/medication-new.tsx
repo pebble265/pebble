@@ -1,29 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { router } from 'expo-router';
-import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View, StyleSheet } from 'react-native';
+import { Text, TextInput } from '../components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TimeWheel } from '../components/time-wheel';
-import { Button, ErrorText, Field } from '../components/ui';
+import { MedPicker, MEDS } from '../components/med-picker';
+import { DosageTimes } from '../components/dosage-times';
+import { Button, ErrorText, Field, confirm } from '../components/ui';
 import { api, errorText } from '../lib/api';
-import { DAY_SHORT } from '../lib/format';
-import { colors, gradients, type Period, PERIODS, radius, shadow, space, type } from '../theme';
+import { colors, gradients, type Period, periodOf, PERIODS, shadow, space, themedStyles, type } from '../theme';
+import type { MedicalData, Medication } from '../lib/types';
+import { useTheme } from '../lib/theme-mode';
 
 const ALL = [1, 2, 3, 4, 5, 6, 7];
 
 /** Names only (no advice): a shortcut so people don't have to spell them. */
-const COMMON = ['Fluoxetine', 'Sertraline', 'Escitalopram', 'Paroxetine', 'Venlafaxine', 'Mirtazapine', 'Amitriptyline', 'Bupropion'];
 
 function BackButton({ onPress }: { onPress(): void }) {
   return (
@@ -33,8 +25,13 @@ function BackButton({ onPress }: { onPress(): void }) {
   );
 }
 
+/** Add a medicine, or edit one with ?id=… (&step=2 opens straight on the times). */
 export default function NewMedication() {
-  const [step, setStep] = useState<1 | 2>(1);
+  useTheme();
+  const params = useLocalSearchParams<{ id?: string; step?: string }>();
+  const editId = params.id;
+  const [step, setStep] = useState<1 | 2>(params.step === '2' ? 2 : 1);
+  const [loaded, setLoaded] = useState(!editId);
   const [name, setName] = useState('');
   const [dosage, setDosage] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -44,16 +41,68 @@ export default function NewMedication() {
   const [editing, setEditing] = useState<Period>('morning');
   const [everyDay, setEveryDay] = useState(true);
   const [days, setDays] = useState<number[]>(ALL);
+  const [sound, setSound] = useState('radial');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const suggestions = COMMON.filter((c) => c.toLowerCase().includes(name.trim().toLowerCase()) && c !== name.trim());
+  // Editing: fill the form from the saved medicine.
+  useEffect(() => {
+    if (!editId) return;
+    api<Medication>(`/medications/${editId}`)
+      .then((m) => {
+        setName(m.name);
+        setDosage(m.dosage ?? '');
+        setInstructions(m.instructions ?? '');
+        setPills(m.pillsRemaining == null ? '' : String(m.pillsRemaining));
+        if (m.sound) setSound(m.sound);
+        const t: Partial<Record<Period, string>> = {};
+        for (const sc of m.schedules) {
+          const hhmm = sc.time.slice(0, 5);
+          // two times in the same part of the day: use the next free slot
+          const slot = [periodOf(hhmm), ...PERIODS.map((p) => p.key)].find((p) => !t[p]);
+          if (slot) t[slot] = hhmm;
+        }
+        if (Object.keys(t).length) {
+          setTimes(t);
+          setEditing(PERIODS.find((p) => t[p.key])!.key);
+        }
+        const d = m.schedules[0]?.daysOfWeek ?? ALL;
+        setEveryDay(d.length === 7);
+        setDays(d);
+        setLoaded(true);
+      })
+      .catch((e) => setError(errorText(e)));
+  }, [editId]);
 
-  function next() {
+  const query = name.trim().toLowerCase();
+  const suggestions = MEDS.filter((m) => m.name.toLowerCase().includes(query) && m.name.toLowerCase() !== query);
+
+  /**
+   * Safety check before the times step: does the name match something the user said they're
+   * allergic to (Profile → ข้อมูลทางการแพทย์)? Asks before going on. Only for new medicines.
+   */
+  async function allergyOk() {
+    if (editId) return true;
+    const allergies = await api<MedicalData>('/medical').then((m) => m.allergies).catch(() => [] as string[]);
+    const n = name.trim().toLowerCase();
+    const hit = allergies.find((a) => {
+      const x = a.trim().toLowerCase();
+      return x.length >= 3 && (n.includes(x) || x.includes(n));
+    });
+    if (!hit) return true;
+    return confirm(
+      `คุณบันทึกไว้ว่าแพ้ ${hit}`,
+      'ยานี้ชื่อตรงกับยาที่คุณแพ้ ปรึกษาแพทย์หรือเภสัชกรก่อนกินนะ ยังจะเพิ่มยานี้ไหม?',
+      'เพิ่มต่อ',
+    );
+  }
+
+  async function next() {
     if (!name.trim()) return setError('กรอกชื่อยา หรือเลือกจากรายการ');
     const n = pills.trim() ? Number(pills) : undefined;
     if (n !== undefined && (!Number.isInteger(n) || n < 0)) return setError('จำนวนเม็ดคงเหลือต้องเป็นตัวเลข');
     setError('');
+    if (!(await allergyOk())) return;
     setStep(2);
   }
 
@@ -84,13 +133,15 @@ export default function NewMedication() {
     setBusy(true);
     setError('');
     try {
-      await api('/medications', {
-        method: 'POST',
+      await api(editId ? `/medications/${editId}` : '/medications', {
+        method: editId ? 'PATCH' : 'POST',
         body: {
           name: name.trim(),
-          ...(dosage.trim() && { dosage: dosage.trim() }),
-          ...(instructions.trim() && { instructions: instructions.trim() }),
+          // when editing, an emptied field must be sent to clear it
+          ...((dosage.trim() || editId) && { dosage: dosage.trim() }),
+          ...((instructions.trim() || editId) && { instructions: instructions.trim() }),
           ...(pillsNum !== undefined && { pillsRemaining: pillsNum }),
+          sound,
           schedules: list.sort().map((time) => ({ time, ...(useDays.length < 7 && { daysOfWeek: useDays }) })),
         },
       });
@@ -102,19 +153,39 @@ export default function NewMedication() {
     }
   }
 
-  const editingTime = times[editing];
+  if (step === 2) {
+    return (
+      <DosageTimes
+        times={times}
+        editing={editing}
+        onTogglePeriod={togglePeriod}
+        onTime={(v) => setTimes((t) => ({ ...t, [editing]: v }))}
+        everyDay={everyDay}
+        onEveryDay={setEveryDay}
+        days={days}
+        onDays={setDays}
+        sound={sound}
+        onSound={setSound}
+        onBack={() => (editId && params.step === '2' ? router.back() : setStep(1))}
+        onSave={save}
+        busy={busy}
+        disabled={!loaded}
+        error={error}
+      />
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-          <BackButton onPress={() => (step === 2 ? setStep(1) : router.back())} />
+        <ScrollView alwaysBounceVertical={false} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+          <BackButton onPress={() => router.back()} />
 
           {step === 1 ? (
             <>
               <View style={styles.head}>
                 <MaterialCommunityIcons name="pill" size={48} color={colors.text} style={{ transform: [{ rotate: '-35deg' }] }} />
-                <Text style={styles.title}>{'ใส่ชื่อยา\nหรือพิมพ์ค้นหา'}</Text>
+                <Text style={styles.title}>{editId ? 'แก้ไขยา' : 'ใส่ชื่อยา\nหรือพิมพ์ค้นหา'}</Text>
               </View>
 
               <View style={styles.darkInput}>
@@ -122,12 +193,12 @@ export default function NewMedication() {
                   value={name}
                   onChangeText={setName}
                   placeholder="ชื่อยา"
-                  placeholderTextColor="#B8B8BE"
+                  placeholderTextColor={colors.faint}
                   style={styles.darkText}
                   autoCapitalize="words"
                   maxLength={200}
                   accessibilityLabel="ชื่อยา"
-                  autoFocus
+                  autoFocus={!editId}
                 />
                 <MaterialCommunityIcons name="pill" size={20} color="#FFFFFF" />
               </View>
@@ -135,17 +206,7 @@ export default function NewMedication() {
               {suggestions.length > 0 && (
                 <>
                   <Text style={[type.small, { textAlign: 'center' }]}>หรือเลือกจากรายการนี้</Text>
-                  <View style={{ gap: space.sm }}>
-                    {suggestions.slice(0, 5).map((c, i) => (
-                      <Pressable
-                        key={c}
-                        onPress={() => setName(c)}
-                        accessibilityRole="button"
-                        style={[styles.suggest, { marginHorizontal: i * 8, opacity: 1 - i * 0.14 }]}>
-                        <Text style={styles.suggestText}>{c}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                  <MedPicker items={suggestions} onPick={setName} />
                 </>
               )}
 
@@ -164,85 +225,15 @@ export default function NewMedication() {
               <ErrorText>{error}</ErrorText>
               <Button title="ถัดไป · ตั้งเวลากินยา" onPress={next} />
             </>
-          ) : (
-            <>
-              <View style={styles.head}>
-                <Ionicons name="time-outline" size={46} color={colors.text} />
-                <Text style={styles.title}>{'ตั้งเวลา\nกินยา'}</Text>
-                <Text style={type.small}>{name}</Text>
-              </View>
-
-              {editingTime ? (
-                <TimeWheel value={editingTime} onChange={(v) => setTimes((t) => ({ ...t, [editing]: v }))} />
-              ) : (
-                <Text style={[type.small, { textAlign: 'center', paddingVertical: space.xl }]}>เลือกช่วงเวลาด้านล่างก่อน</Text>
-              )}
-
-              <Text style={[type.small, { textAlign: 'center', color: colors.text }]}>กินยาช่วงไหน</Text>
-              <View style={styles.periods}>
-                {PERIODS.map((p) => {
-                  const on = !!times[p.key];
-                  const night = p.key === 'night';
-                  const isEditing = on && editing === p.key;
-                  return (
-                    <Pressable
-                      key={p.key}
-                      onPress={() => togglePeriod(p.key)}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: on }}
-                      accessibilityLabel={`${p.label}${on ? ` ${times[p.key]}` : ''}`}
-                      style={{ alignItems: 'center', gap: 4 }}>
-                      <View
-                        style={[
-                          styles.periodBox,
-                          on && (night ? { backgroundColor: colors.night } : { backgroundImage: gradients.sun, backgroundColor: colors.sun }),
-                          isEditing && styles.periodEditing,
-                        ]}>
-                        <MaterialCommunityIcons name={p.icon} size={22} color={on ? (night ? '#FFFFFF' : '#5B4300') : '#A0A0A8'} />
-                      </View>
-                      <Text style={{ fontSize: 11, color: on ? colors.text : colors.muted, fontWeight: on ? '700' : '400' }}>{p.label}</Text>
-                      <Text style={{ fontSize: 10, color: colors.muted, fontVariant: ['tabular-nums'] }}>{times[p.key] ?? ' '}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={[type.small, { textAlign: 'center' }]}>แตะช่วงที่เลือกแล้วเพื่อแก้เวลา แตะซ้ำเพื่อเอาออก</Text>
-
-              <View style={styles.rows}>
-                <View style={styles.row}>
-                  <Text style={type.body}>กินทุกวัน</Text>
-                  <Switch value={everyDay} onValueChange={setEveryDay} trackColor={{ true: colors.online }} />
-                </View>
-                {!everyDay && (
-                  <View style={[styles.row, { justifyContent: 'center', gap: 6, flexWrap: 'wrap' }]}>
-                    {ALL.map((d) => {
-                      const on = days.includes(d);
-                      return (
-                        <Pressable
-                          key={d}
-                          onPress={() => setDays((x) => (on ? x.filter((y) => y !== d) : [...x, d].sort()))}
-                          accessibilityRole="checkbox"
-                          accessibilityState={{ checked: on }}
-                          style={[styles.day, on && { backgroundColor: colors.text }]}>
-                          <Text style={{ color: on ? '#FFFFFF' : colors.text, fontWeight: '600' }}>{DAY_SHORT[d]}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
-
-              <ErrorText>{error}</ErrorText>
-              <Button title="บันทึกยา" leadingArrow onPress={save} loading={busy} />
-            </>
-          )}
+          ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() =>
+  StyleSheet.create({
   page: { padding: space.xl, gap: space.lg, maxWidth: 520, width: '100%', alignSelf: 'center', paddingBottom: 48 },
   back: { width: 36, height: 36, justifyContent: 'center' },
   head: { alignItems: 'center', gap: space.sm },
@@ -268,26 +259,4 @@ const styles = StyleSheet.create({
     boxShadow: shadow.soft,
   },
   suggestText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  periods: { flexDirection: 'row', justifyContent: 'center', gap: space.lg },
-  periodBox: {
-    width: 52,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#E4E4EA',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  periodEditing: { borderWidth: 2, borderColor: colors.text },
-  rows: { backgroundColor: '#FFFFFF', borderRadius: radius.md, paddingHorizontal: space.lg, boxShadow: shadow.soft },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 50 },
-  day: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: space.sm,
-  },
-});
+}));

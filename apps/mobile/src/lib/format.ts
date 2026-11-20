@@ -1,6 +1,8 @@
+import { locale } from './i18n';
+
 /** "2026-11-03T13:00:00Z" -> "20:00" in the user's timezone */
 export function timeOf(iso: string, timeZone?: string) {
-  return new Intl.DateTimeFormat('th-TH', {
+  return new Intl.DateTimeFormat(locale(), {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -11,7 +13,7 @@ export function timeOf(iso: string, timeZone?: string) {
 /** "2026-11-03" -> "วันอังคารที่ 3 พฤศจิกายน" */
 export function longDate(isoDate: string) {
   const d = new Date(`${isoDate}T12:00:00Z`);
-  return new Intl.DateTimeFormat('th-TH', {
+  return new Intl.DateTimeFormat(locale(), {
     weekday: 'long',
     day: 'numeric',
     month: 'long',

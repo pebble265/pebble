@@ -14,7 +14,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../auth/jwt-auth.guard';
 import { DevicesService } from './devices.service';
-import { PairDeviceDto } from './dto/devices.dto';
+import { PairDeviceDto, RobotCommandDto } from './dto/devices.dto';
 import { ConsentGuard } from '../privacy/consent.guard';
 
 /** Routes the MOBILE APP calls (user token). */
@@ -29,12 +29,24 @@ export class DevicesController {
     return this.devices.listMine(user.id);
   }
 
-  /** POST /devices/pair  { code: "123456" } — code shown on the robot's screen */
+  /** POST /devices/pair  { code: "123456", serialNumber? } — code from the robot (screen or Bluetooth) */
   @Post('pair')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   pair(@CurrentUser() user: AuthUser, @Body() dto: PairDeviceDto) {
-    return this.devices.pair(user.id, dto.code);
+    return this.devices.pair(user.id, dto.code, dto.serialNumber);
+  }
+
+  /** POST /devices/:id/command  { action: "wake" | "forward" | "backward" | "stop" } */
+  @Post(':id/command')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  command(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RobotCommandDto,
+  ) {
+    return this.devices.command(user.id, id, dto.action);
   }
 
   /** DELETE /devices/:id — unpair a robot */

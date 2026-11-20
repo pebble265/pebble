@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { addDays, localDateOf, zonedToUtc } from '../common/time';
+import { CryptoService } from '../crypto/crypto.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Thai labels for the 7-step scale, shared with the app. */
@@ -10,9 +11,13 @@ const REPLACE_WINDOW_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class MoodsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly crypto: CryptoService,
+  ) {}
 
-  async create(userId: string, score: number, source: 'app' | 'robot' = 'app') {
+  async create(userId: string, score: number, source: 'app' | 'robot' = 'app', note?: string) {
+    const noteData = note !== undefined ? { note_enc: this.crypto.encryptOptional(note.trim() || null) } : {};
     const now = new Date();
     // Tapping a few emoji in a row is one check-in, not several.
     const recent = await this.prisma.mood_checkins.findFirst({
@@ -20,9 +25,20 @@ export class MoodsService {
       orderBy: { created_at: 'desc' },
     });
     const row = recent
-      ? await this.prisma.mood_checkins.update({ where: { id: recent.id }, data: { score, source } })
-      : await this.prisma.mood_checkins.create({ data: { user_id: userId, score, source } });
+      ? await this.prisma.mood_checkins.update({ where: { id: recent.id }, data: { score, source, ...noteData } })
+      : await this.prisma.mood_checkins.create({ data: { user_id: userId, score, source, ...noteData } });
     return this.toResponse(row);
+  }
+
+  /** Add / change / clear ("") the note of one of my check-ins. */
+  async setNote(userId: string, id: string, note: string) {
+    const row = await this.prisma.mood_checkins.findFirst({ where: { id, user_id: userId } });
+    if (!row) throw new NotFoundException('Check-in not found');
+    const updated = await this.prisma.mood_checkins.update({
+      where: { id },
+      data: { note_enc: this.crypto.encryptOptional(note.trim() || null) },
+    });
+    return this.toResponse(updated);
   }
 
   /** Check-ins for the last `days` local days (today included), newest first. */
@@ -45,12 +61,13 @@ export class MoodsService {
     };
   }
 
-  private toResponse(r: { id: string; score: number; source: string; created_at: Date }) {
+  private toResponse(r: { id: string; score: number; source: string; created_at: Date; note_enc?: Uint8Array | null }) {
     return {
       id: r.id,
       score: r.score,
       label: MOOD_LABELS[r.score],
       source: r.source,
+      note: this.crypto.decryptOptional(r.note_enc ?? null),
       createdAt: r.created_at,
     };
   }

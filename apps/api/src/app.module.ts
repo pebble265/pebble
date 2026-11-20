@@ -14,11 +14,13 @@ import { DevicesModule } from './devices/devices.module';
 import { DosesModule } from './doses/doses.module';
 import { MedicationsModule } from './medications/medications.module';
 import { MoodsModule } from './moods/moods.module';
+import { MedicalModule } from './medical/medical.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PrivacyModule } from './privacy/privacy.module';
 import { RobotSettingsModule } from './robot-settings/robot-settings.module';
 import { UsersModule } from './users/users.module';
+import { LegalModule } from './legal/legal.module';
 
 @Module({
   imports: [
@@ -31,10 +33,12 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     NotificationsModule,
     UsersModule,
+    LegalModule,
     RobotSettingsModule,
     MedicationsModule,
     DosesModule,
     MoodsModule,
+    MedicalModule,
     DevicesModule,
     CaretakersModule,
     AlertsModule,

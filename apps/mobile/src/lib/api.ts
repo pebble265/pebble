@@ -42,6 +42,13 @@ export async function getRefreshToken() {
   return getItem(REFRESH_KEY);
 }
 
+/** fetch that gives up after `ms`, so a dead server never leaves the app stuck on the splash. */
+function fetchWithTimeout(url: string, init: RequestInit, ms = 12_000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+
 /**
  * Get a new access token using the refresh token.
  * Only ONE refresh may run at a time: the backend rotates refresh tokens and
@@ -53,7 +60,7 @@ export function refreshSession(): Promise<boolean> {
       const refreshToken = await getItem(REFRESH_KEY);
       if (!refreshToken) return false;
       try {
-        const res = await fetch(`${API_URL}/auth/refresh`, {
+        const res = await fetchWithTimeout(`${API_URL}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
           body: JSON.stringify({ refreshToken }),
@@ -85,7 +92,7 @@ async function send(path: string, { method = 'GET', body, auth = true }: Options
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
   try {
-    return await fetch(`${API_URL}${path}`, {
+    return await fetchWithTimeout(`${API_URL}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -122,6 +129,17 @@ const THAI: Record<string, string> = {
   'Please complete onboarding first': 'กรุณายืนยันการยินยอมก่อนใช้งาน',
   'Conversation not found or already ended': 'บทสนทนานี้จบไปแล้ว เริ่มคุยใหม่ได้เลย',
   'ThrottlerException: Too Many Requests': 'ลองบ่อยเกินไป รอสักครู่แล้วลองใหม่',
+  'Sign-in could not be verified': 'ยืนยันการเข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง',
+  'Your account did not share a verified email': 'บัญชีนี้ไม่ได้แชร์อีเมลที่ยืนยันแล้ว ลองใช้อีเมลแทน',
+  'Google sign-in is not configured': 'ยังไม่ได้ตั้งค่า Google sign-in ที่เซิร์ฟเวอร์',
+  'Sign-in service is unreachable, try again': 'ติดต่อ Apple/Google ไม่ได้ ลองใหม่อีกครั้ง',
+  'This account was deleted': 'บัญชีนี้ถูกลบไปแล้ว',
+  'Please sign in again to confirm': 'กรุณาเข้าสู่ระบบอีกครั้งเพื่อยืนยัน',
+  'Invalid or expired code': 'รหัสไม่ถูกต้องหรือหมดอายุแล้ว',
+  'Too many attempts, request a new code': 'ใส่รหัสผิดหลายครั้งเกินไป กด Resend เพื่อขอรหัสใหม่',
+  'Reset session expired, please start again': 'หมดเวลาตั้งรหัสผ่านใหม่ เริ่มขั้นตอนใหม่อีกครั้งนะ',
+  'Code must be 5 digits': 'รหัสต้องเป็นตัวเลข 5 หลัก',
+  'newPassword must be longer than or equal to 8 characters': 'รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร',
 };
 
 function toThai(data: any): string {

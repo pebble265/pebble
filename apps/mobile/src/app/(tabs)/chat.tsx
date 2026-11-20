@@ -1,25 +1,18 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  type ScrollViewInstance,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { TAB_BAR_SPACE, useKeyboardVisible } from '../../components/tab-bar';
-import { ErrorText, RobotFace } from '../../components/ui';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, type ScrollViewInstance, View, StyleSheet } from 'react-native';
+import { Text, TextInput } from '../../components/text';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useS } from '../../components/figma';
+import { useKeyboardVisible, useTabBarHeight } from '../../components/tab-bar';
+import { ErrorText } from '../../components/ui';
+import { useAuth } from '../../lib/auth';
 import { ApiError, api, errorText } from '../../lib/api';
 import type { ChatReply } from '../../lib/types';
-import { colors, gradients, radius, shadow, space, type } from '../../theme';
+import { colors, gradients, isDark, radius, space, themedStyles, type } from '../../theme';
+import { useTheme } from '../../lib/theme-mode';
+import { UserPhoto } from '../../components/user-ui';
 
 interface Msg {
   id: number;
@@ -64,10 +57,16 @@ function CrisisBanner({ contacts }: { contacts: Contacts }) {
   );
 }
 
+/** Starters shown over the input while typing (faint to strong, like the design). */
+const STARTERS = ['ไม่มีใครคุยด้วยเลย', 'วันนี้เหนื่อยมาก', 'สวัสดี Pebbi ตอนนี้เครียดมาก'];
+
+/** Figma "pebble(a) - Pebbi / Pebbi Chat / Pebbi Chat Send". */
 export default function Chat() {
-  const [messages, setMessages] = useState<Msg[]>([
-    { id: 0, from: 'pebble', text: 'สวัสดี วันนี้เป็นยังไงบ้าง เล่าให้ฟังได้เลยนะ' },
-  ]);
+  useTheme();
+  const s = useS();
+  const barHeight = useTabBarHeight();
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -121,134 +120,163 @@ export default function Chat() {
     const id = conversationId.current;
     conversationId.current = null;
     setCrisis(null);
-    setMessages([{ id: nextId.current++, from: 'pebble', text: 'เริ่มคุยเรื่องใหม่ได้เลยนะ' }]);
+    setMessages([]);
     if (id) await api(`/chat/conversations/${id}/end`, { method: 'POST' }).catch(() => {});
   }
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <View style={styles.header}>
-        <RobotFace size={42} awake />
-        <View style={{ flex: 1 }}>
-          <Text style={type.heading}>Pebbi</Text>
-          <Text style={type.small}>{sending ? 'กำลังพิมพ์…' : 'อยู่ตรงนี้เสมอ'}</Text>
-        </View>
-        <Pressable onPress={endConversation} accessibilityRole="button" style={styles.newBtn}>
-          <Ionicons name="refresh" size={16} color={colors.blue} />
-          <Text style={{ color: colors.blue, fontWeight: '600' }}>เรื่องใหม่</Text>
-        </Pressable>
-      </View>
+  const empty = messages.length === 0;
+  const name = user?.displayName?.trim();
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
+  return (
+    <View style={styles.page}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: s(102), paddingLeft: s(45), paddingRight: s(37) }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: s(18), fontWeight: '500', color: colors.ink }}>ใจของคุณ ปลอดภัยที่นี่</Text>
+            <Text style={{ fontSize: s(36), fontWeight: '700', color: colors.ink, letterSpacing: -0.5 }}>Pebbi</Text>
+          </View>
+          {!empty && (
+            <Pressable onPress={endConversation} hitSlop={8} accessibilityRole="button" accessibilityLabel="เริ่มเรื่องใหม่" style={styles.newBtn}>
+              <Ionicons name="refresh" size={s(15)} color={colors.ink} />
+              <Text style={{ fontSize: s(12), fontWeight: '600' }}>เรื่องใหม่</Text>
+            </Pressable>
+          )}
+          <UserPhoto px={s(42)} />
+        </View>
+
         {crisis && <CrisisBanner contacts={crisis} />}
 
-        <ScrollView
+        <ScrollView alwaysBounceVertical={false}
           ref={scroll}
-          contentContainerStyle={styles.list}
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.list, empty && { flexGrow: 1, justifyContent: 'center' }]}
+          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}>
-          {messages.map((m) => (
-            <View key={m.id} style={[styles.bubble, m.from === 'me' ? styles.mine : styles.theirs]}>
-              <Text style={{ fontSize: 16, color: m.from === 'me' ? colors.primaryText : colors.text }}>
-                {m.text}
+          {empty && !keyboard && (
+            <View style={{ alignItems: 'center', gap: s(6), paddingBottom: s(60) }}>
+              <MaterialCommunityIcons name="star-four-points" size={s(40)} color={colors.ink} style={{ transform: [{ rotate: '-14deg' }] }} />
+              <Text style={{ fontSize: s(32), fontWeight: '500', color: colors.muted, textAlign: 'center', lineHeight: s(40) }}>
+                {`วันนี้คิดอะไรอยู่\n${name ? `${name}?` : 'บ้าง?'}`}
               </Text>
+              <Text style={{ fontSize: s(11), color: colors.faint, marginTop: s(10) }}>Pebbi เป็นเพื่อนคุย ไม่ใช่แพทย์ · ฉุกเฉินโทร 1669</Text>
             </View>
-          ))}
+          )}
+
+          {empty && keyboard && (
+            <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', gap: s(10), paddingBottom: s(6) }}>
+              {STARTERS.map((text, i) => (
+                <Pressable key={text} onPress={() => send(text)} accessibilityRole="button" hitSlop={4}>
+                  <Text style={{ fontSize: s(13 + i), color: colors.ink, opacity: [0.35, 0.6, 0.9][i] }}>{text}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {messages.map((m) =>
+            m.from === 'me' ? (
+              <View key={m.id} style={[styles.bubble, styles.mine]}>
+                <Text style={{ fontSize: s(14), color: '#FFF' }}>{m.text}</Text>
+              </View>
+            ) : (
+              <View key={m.id} style={styles.theirsRow}>
+                <Image source={require('../../../assets/images/setup/avatar.png')} style={{ width: s(26), height: s(26), borderRadius: 999 }} />
+                <View style={[styles.bubble, styles.theirs]}>
+                  <Text style={{ fontSize: s(14), color: colors.ink }}>{m.text}</Text>
+                </View>
+              </View>
+            ),
+          )}
           {sending && (
-            <View style={[styles.bubble, styles.theirs]}>
-              <ActivityIndicator color={colors.muted} />
+            <View style={styles.theirsRow}>
+              <Image source={require('../../../assets/images/setup/avatar.png')} style={{ width: s(26), height: s(26), borderRadius: 999 }} />
+              <View style={[styles.bubble, styles.theirs]}>
+                <ActivityIndicator color={colors.muted} size="small" />
+              </View>
             </View>
           )}
           <ErrorText>{error}</ErrorText>
         </ScrollView>
 
-        <View style={styles.inputBar}>
+        {/* input + send */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: s(12),
+            paddingLeft: s(36),
+            paddingRight: s(46),
+            paddingTop: s(8),
+            // sits just above the nav bar, same bar as every other tab
+            paddingBottom: keyboard ? s(10) : barHeight + 10,
+          }}>
           <TextInput
             value={input}
             onChangeText={setInput}
-            placeholder="พิมพ์ข้อความ…"
-            placeholderTextColor={colors.muted}
-            style={styles.input}
+            placeholder="คุยกับ Pebbi"
+            placeholderTextColor={colors.ink}
+            style={[styles.input, { fontSize: s(13), minHeight: s(38), borderRadius: s(19), paddingHorizontal: s(16) }]}
             multiline
             maxLength={2000}
             onSubmitEditing={Platform.OS === 'web' ? () => send() : undefined}
             blurOnSubmit={Platform.OS === 'web'}
+            accessibilityLabel="คุยกับ Pebbi"
           />
           <Pressable
             onPress={() => send()}
             disabled={!input.trim() || sending}
             accessibilityRole="button"
             accessibilityLabel="ส่ง"
-            style={[styles.send, (!input.trim() || sending) && { opacity: 0.4 }]}>
-            <Ionicons name="paper-plane" size={20} color="#FFFFFF" />
+            style={[styles.send, { width: s(38), height: s(38), opacity: input.trim() && !sending ? 1 : 0.45 }]}>
+<Ionicons name="arrow-up" size={s(20)} color="#FFF" />
           </Pressable>
         </View>
-        <Text style={[styles.disclaimer, { marginBottom: keyboard ? 0 : TAB_BAR_SPACE - 14 }]}>Pebbi เป็นเพื่อนคุย ไม่ใช่แพทย์ · ฉุกเฉินโทร 1669</Text>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    paddingHorizontal: space.xl,
-    paddingVertical: space.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+const styles = themedStyles(() =>
+  StyleSheet.create({
+  page: {
+    flex: 1,
+    backgroundColor: colors.page,
+    // the soft pink / lilac glow at the bottom of the design
+    backgroundImage: gradients.glow,
   },
   newBtn: {
     flexDirection: 'row',
     gap: 4,
     alignItems: 'center',
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 10,
     borderRadius: radius.pill,
-    backgroundColor: colors.blueSoft,
+    backgroundColor: colors.fill,
   },
-  list: { padding: space.lg, gap: space.sm, maxWidth: 680, width: '100%', alignSelf: 'center' },
-  bubble: { maxWidth: '82%', paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.lg },
-  mine: { alignSelf: 'flex-end', backgroundColor: colors.blue, backgroundImage: gradients.pill, borderBottomRightRadius: 6 },
-  theirs: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.surface,
-    boxShadow: shadow.soft,
-    borderBottomLeftRadius: 6,
-  },
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: space.sm,
-    paddingHorizontal: space.lg,
-    paddingTop: space.sm,
-  },
+  list: { paddingHorizontal: 40, paddingTop: 24, paddingBottom: 12, gap: 14, maxWidth: 680, width: '100%', alignSelf: 'center' },
+  bubble: { maxWidth: '78%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14 },
+  mine: { alignSelf: 'flex-end', backgroundColor: '#3B8BEF', borderBottomRightRadius: 4 },
+  theirsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', maxWidth: '88%' },
+  theirs: { backgroundColor: colors.fill, borderBottomLeftRadius: 4, maxWidth: '100%' },
   input: {
     flex: 1,
-    minHeight: 46,
     maxHeight: 120,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 23,
-    paddingHorizontal: space.lg,
-    paddingTop: 12,
-    paddingBottom: 12,
-    fontSize: 16,
-    color: colors.text,
+    paddingTop: 10,
+    paddingBottom: 10,
+    color: colors.ink,
     backgroundColor: colors.surface,
+    backgroundImage: gradients.cardFaint,
+    boxShadow: '0 2px 12px rgba(0,0,0,0.10)',
+    outlineWidth: 0,
   },
   send: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    borderRadius: 999,
     backgroundColor: colors.red,
     alignItems: 'center',
     justifyContent: 'center',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
   },
-  disclaimer: { fontSize: 12, color: colors.muted, textAlign: 'center', paddingVertical: space.sm },
   crisis: {
     margin: space.lg,
     marginBottom: 0,
@@ -257,7 +285,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.dangerSoft,
     borderWidth: 1,
-    borderColor: '#F5C2BD',
+    borderColor: isDark() ? '#6B2C27' : '#F5C2BD',
   },
   callBtn: {
     flexDirection: 'row',
@@ -268,4 +296,4 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
     borderRadius: radius.pill,
   },
-});
+}));

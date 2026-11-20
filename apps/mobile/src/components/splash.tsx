@@ -1,7 +1,8 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet } from 'react-native';
-import { colors } from '../theme';
+import { colors, themedStyles } from '../theme';
+import { useTheme } from '../lib/theme-mode';
 
 /** How long the splash stays up at minimum, so it reads as a moment, not a flicker. */
 const MIN_MS = 1400;
@@ -12,6 +13,7 @@ const MIN_MS = 1400;
  * waits until the app is ready, then fades out.
  */
 export function Splash({ ready, onDone }: { ready: boolean; onDone(): void }) {
+  useTheme();
   const fade = useRef(new Animated.Value(1)).current;
   const tagline = useRef(new Animated.Value(0)).current;
   const [minElapsed, setMinElapsed] = useState(false);
@@ -46,8 +48,9 @@ export function Splash({ ready, onDone }: { ready: boolean; onDone(): void }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+const styles = themedStyles(() =>
+  StyleSheet.create({
+  wrap: { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', zIndex: 100 },
   logo: { width: 150, height: 150 },
   tagline: {
     position: 'absolute',
@@ -57,4 +60,4 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     color: colors.text,
   },
-});
+}));

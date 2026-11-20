@@ -1,24 +1,32 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Splash } from '../components/splash';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { colors } from '../theme';
+import { ThemeProvider, useTheme } from '../lib/theme-mode';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
-        <SplashGate />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ThemedStatusBar />
+          <RootNavigator />
+          <SplashGate />
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
+}
+
+function ThemedStatusBar() {
+  const { dark } = useTheme();
+  return <StatusBar style={dark ? 'light' : 'dark'} />;
 }
 
 /** Branded splash on top of everything until the session check is done. */
@@ -36,12 +44,23 @@ function SplashGate() {
  *   ready               -> the app
  */
 function RootNavigator() {
+  const { setLightOnly, setLang } = useTheme();
   const { isLoading, user } = useAuth();
+  // the account's language (Settings > Appearance) once signed in
+  const userLang = user ? (user.locale?.startsWith('en') ? 'en' : 'th') : null;
+  useEffect(() => {
+    if (userLang) setLang(userLang);
+  }, [userLang, setLang]);
+  const isReady = !!user?.onboardedAt && !!user?.robotSetupAt;
+  // dark mode is for the app itself; sign-in and first-run screens stay light like the design
+  useEffect(() => setLightOnly(!isReady), [isReady, setLightOnly]);
 
   if (isLoading) return null;
 
   const signedIn = !!user;
-  const ready = signedIn && !!user.onboardedAt;
+  // First run after sign-in / sign-up: Welcome -> profile + consent -> connect the robot.
+  const ready = signedIn && !!user.onboardedAt && !!user.robotSetupAt;
+  const home = !signedIn ? '/sign-in' : ready ? '/' : '/welcome';
 
   return (
     <Stack
@@ -49,18 +68,48 @@ function RootNavigator() {
         headerShown: false,
         contentStyle: { backgroundColor: colors.bg },
       }}>
-      <Stack.Protected guard={!signedIn}>
+      {/* Terms and Conditions: page sheet, reachable signed in or out */}
+      <Stack.Screen name="terms" options={{ presentation: 'modal' }} />
+
+      <Stack.Protected guard={!signedIn} redirectTo={home}>
         <Stack.Screen name="sign-in" />
-        <Stack.Screen name="sign-up" />
+        <Stack.Screen
+          name="sign-up"
+          options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+        />
+        <Stack.Screen name="sign-up-email" />
+        <Stack.Screen name="forgot" />
+        <Stack.Screen name="forgot-email" />
+        <Stack.Screen name="forgot-verify" />
+        <Stack.Screen name="forgot-new" />
       </Stack.Protected>
 
-      <Stack.Protected guard={signedIn && !ready}>
-        <Stack.Screen name="onboarding" />
+      <Stack.Protected guard={signedIn && !ready} redirectTo={home}>
+        <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
+        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+        <Stack.Screen name="connect" options={{ animation: 'fade' }} />
+        <Stack.Screen name="connect-finding" options={{ animation: 'fade' }} />
+        <Stack.Screen name="connect-found" options={{ animation: 'fade' }} />
       </Stack.Protected>
 
-      <Stack.Protected guard={ready}>
+      {/* explicit targets, so a guarded route never falls back to the first route by name */}
+      <Stack.Protected guard={ready} redirectTo={home}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="medication-new" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="meds-manage" />
+        <Stack.Screen
+          name="med-show"
+          options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+        />
+        <Stack.Screen name="brief" />
+        <Stack.Screen
+          name="feel"
+          options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+        />
+        <Stack.Screen
+          name="quick-chat"
+          options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+        />
         <Stack.Screen
           name="schedule"
           options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}

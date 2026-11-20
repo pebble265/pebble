@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pebble",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.thanakron.pebble"
@@ -36,11 +36,54 @@
         }
       ],
       "expo-secure-store",
-      "./plugins/with-swift5-expo-jsi"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pebble ใช้รูปภาพเพื่อตั้งเป็นรูปโปรไฟล์ของคุณ",
+          "cameraPermission": "Pebble ใช้กล้องเพื่อถ่ายรูปโปรไฟล์ของคุณ",
+          "microphonePermission": false
+        }
+      ],
+      "./plugins/with-swift5-expo-jsi",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [],
+          "bluetoothAlwaysPermission": "Pebble ใช้ Bluetooth เพื่อค้นหาและเชื่อมต่อกับหุ่น pebble(a) ของคุณ"
+        }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Pebble อ่านจำนวนก้าวและอัตราการเต้นของหัวใจจาก Apple Health เพื่อแสดงในสรุปวันนี้",
+          "NSHealthUpdateUsageDescription": false,
+          "background": false
+        }
+      ],
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      "./plugins/without-apple-signin",
+      [
+        "react-native-alarm-scheduler",
+        {
+          "alarmKitUsageDescription": "Pebble ใช้นาฬิกาปลุกเพื่อเตือนเวลากินยา ให้ดังแม้เครื่องปิดเสียงหรือล็อกหน้าจออยู่"
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
     }
   }
 }

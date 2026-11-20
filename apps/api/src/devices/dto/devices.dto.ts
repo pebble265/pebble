@@ -14,6 +14,22 @@ import {
 export class PairDeviceDto {
   @Matches(/^\d{6}$/, { message: 'code must be 6 digits' })
   code!: string;
+
+  /** Serial the robot reported over Bluetooth; the code must belong to it. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  serialNumber?: string;
+}
+
+/** What the app can ask the robot to do from the "pebble" tab. */
+export const ROBOT_ACTIONS = ['wake', 'forward', 'backward', 'stop'] as const;
+export type RobotAction = (typeof ROBOT_ACTIONS)[number];
+
+/** App -> backend -> robot: a remote-control command. */
+export class RobotCommandDto {
+  @IsIn(ROBOT_ACTIONS)
+  action!: RobotAction;
 }
 
 /** Robot -> backend: log in with the credentials burned in at the factory. */

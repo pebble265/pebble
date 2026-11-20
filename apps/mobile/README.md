@@ -17,3 +17,15 @@
 - `src/lib/auth.tsx` sign in / sign up / session restore
 - `src/components/ui.tsx` shared UI pieces
 - `src/theme.ts` colors and spacing
+
+## Spotify (music card on the "pebble" tab)
+1. Go to https://developer.spotify.com/dashboard and **Create app**.
+   - Redirect URI: `pebble://spotify`
+   - APIs used: **Web API**
+2. Copy the app's **Client ID** into `.env`: `EXPO_PUBLIC_SPOTIFY_CLIENT_ID=...`
+3. While the Spotify app is in development mode, add each tester's Spotify email under
+   **User Management** (Spotify only lets listed users sign in).
+4. Rebuild the app. On the "pebble" tab tap **เชื่อม Spotify** and sign in.
+   - Showing the current song works with any account.
+   - Play / pause from Pebble needs **Spotify Premium**; otherwise the card opens Spotify.
+   - Long-press the card to disconnect.

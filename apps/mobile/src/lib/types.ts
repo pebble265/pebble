@@ -1,3 +1,5 @@
+export type Sex = 'male' | 'female' | 'other';
+
 export interface User {
   id: string;
   email: string;
@@ -6,7 +8,19 @@ export interface User {
   timezone: string;
   usesMedication: boolean;
   onboardedAt: string | null;
+  pronunciation?: string | null;
+  sex?: Sex | null;
+  birthYear?: number | null;
+  /** null until the "connect your pebble(a)" screens are done */
+  robotSetupAt?: string | null;
   createdAt: string;
+  /** false for accounts made with Apple / Google */
+  hasPassword?: boolean;
+  phone?: string | null;
+  /** profile photo (data URL), null = default picture */
+  avatar?: string | null;
+  /** how the account signs in: "password", "google", "apple" */
+  loginMethods?: string[];
 }
 
 export interface Tokens {
@@ -49,6 +63,8 @@ export interface DoseHistory {
     pending: number;
     adherenceRate: number | null;
   };
+  /** the doses themselves (past ones, plus ones already taken/skipped early) */
+  doses?: Dose[];
 }
 
 export interface Schedule {
@@ -67,6 +83,8 @@ export interface Medication {
   instructions: string | null;
   dispenserSlot: number | null;
   pillsRemaining: number | null;
+  /** reminder sound picked on the "Set dosage times" screen */
+  sound?: string;
   isActive: boolean;
   schedules: Schedule[];
   createdAt: string;
@@ -97,6 +115,8 @@ export interface MoodEntry {
   score: number;
   label: string;
   source: string;
+  /** short note the user wrote with this check-in */
+  note?: string | null;
   createdAt: string;
   date?: string;
 }
@@ -117,3 +137,69 @@ export interface Device {
   lastSeenAt: string | null;
   pairedAt: string | null;
 }
+
+// ---- Caretakers -------------------------------------------------------------
+export type CarePermissions = {
+  alertOnCrisis: boolean;
+  alertOnMissedDose: boolean;
+  alertOnDeviceIssue: boolean;
+  viewAdherence: boolean;
+  viewMoodTrend: boolean;
+  viewConversationSummaries: boolean;
+};
+
+/** GET /caretakers: people who look after me */
+export type MyCaretaker = {
+  id: string;
+  status: 'pending' | 'accepted' | 'expired';
+  relationshipLabel: string | null;
+  inviteEmail: string | null;
+  caretaker: { displayName: string | null; email: string | null } | null;
+  permissions: CarePermissions;
+  createdAt: string;
+  acceptedAt: string | null;
+};
+
+/** GET /caretaking: people I look after */
+export type CaringFor = {
+  linkId: string;
+  displayName: string;
+  relationshipLabel: string | null;
+  permissions: CarePermissions;
+  unacknowledgedAlerts: number;
+  since: string | null;
+};
+
+/** GET /caretaking/:linkId: only what that person allowed */
+export type CareOverview = {
+  linkId: string;
+  displayName: string;
+  relationshipLabel: string | null;
+  permissions: CarePermissions;
+  adherence?: { days: number; taken: number; missed: number; skipped: number; rate: number | null };
+  robots?: { status: string; batteryLevel: number | null; lastSeenAt: string | null }[];
+  moodTrend?: { at: string; score: number }[];
+};
+
+/** GET /caretaking-alerts */
+export type CareAlert = {
+  deliveryId: string;
+  linkId: string;
+  person: string;
+  relationshipLabel: string | null;
+  type: string;
+  severity: string;
+  message: string;
+  createdAt: string;
+  resolvedAt: string | null;
+  acknowledgedAt: string | null;
+};
+
+// ---- Medical info (Profile → ข้อมูลทางการแพทย์) ------------------------------
+export type MedicalData = {
+  allergies: string[];
+  conditions: string[];
+  doctor: { name: string; place: string; phone: string };
+  /** the 1323 / 1669 hotlines come first and can't be removed */
+  contacts: { id: string; label: string; phone: string; hotline: boolean }[];
+};

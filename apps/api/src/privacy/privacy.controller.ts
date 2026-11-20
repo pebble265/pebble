@@ -68,6 +68,6 @@ export class PrivacyController {
     @Body() dto: DeleteAccountDto,
     @Req() req: { ip?: string },
   ) {
-    await this.privacy.deleteAccount(user.id, dto.password, req.ip);
+    await this.privacy.deleteAccount(user.id, dto, req.ip);
   }
 }

@@ -117,6 +117,7 @@ CREATE TABLE medications (
     instructions_enc BYTEA,                        -- e.g. "หลังอาหาร ดื่มน้ำตาม"
     dispenser_slot  SMALLINT,                      -- which robot slot holds it (NULL = not in robot)
     pills_remaining INTEGER,                       -- for refill reminders
+    alarm_sound     VARCHAR(32) NOT NULL DEFAULT 'radial', -- reminder sound (Set dosage times screen)
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -294,8 +295,61 @@ CREATE TABLE IF NOT EXISTS mood_checkins (
     user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     score       SMALLINT NOT NULL CHECK (score BETWEEN 1 AND 7),  -- 1 = very low ... 7 = great
     source      VARCHAR(20) NOT NULL DEFAULT 'app',              -- app | robot
+    note_enc    BYTEA,                                           -- optional note, encrypted (AES-GCM)
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_mood_checkins_user_time
     ON mood_checkins (user_id, created_at DESC);
+
+-- Pebble(a): "Sign in with Apple" / "Sign in with Google".
+-- One row per external account linked to a Pebble user. Safe to run more than once.
+CREATE TABLE IF NOT EXISTS auth_identities (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider       VARCHAR(20) NOT NULL CHECK (provider IN ('apple', 'google')),
+    subject        VARCHAR(255) NOT NULL,          -- the provider's stable user id ("sub")
+    email          CITEXT,                         -- as the provider reported it (may be an Apple relay address)
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_login_at  TIMESTAMPTZ,
+    UNIQUE (provider, subject)
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_identities_user ON auth_identities (user_id);
+
+-- Pebble(a): "Forget Password" — a 5-digit code sent by email, then a short-lived
+-- reset token once the code is confirmed. Only hashes are stored. Safe to run more than once.
+CREATE TABLE IF NOT EXISTS password_resets (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash         VARCHAR(64) NOT NULL,
+    attempts          SMALLINT NOT NULL DEFAULT 0,
+    expires_at        TIMESTAMPTZ NOT NULL,          -- the emailed code stops working after this
+    reset_token_hash  VARCHAR(64) UNIQUE,            -- set once the code is confirmed
+    reset_expires_at  TIMESTAMPTZ,
+    used_at           TIMESTAMPTZ,                   -- password changed, or replaced by a newer code
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets (user_id, created_at DESC);
+
+-- Pebble(a): profile from the "Create Account" screen + first-run robot setup.
+-- Safe to run more than once.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pronunciation  VARCHAR(100);   -- how the robot should say the name
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sex            VARCHAR(10);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_year     SMALLINT;       -- from the age the user typed
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone          VARCHAR(30);    -- Personal Information screen
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_enc     BYTEA;          -- profile photo (encrypted JPEG data URL)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS medical_enc    BYTEA;          -- allergies, conditions, doctor (encrypted JSON)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS robot_setup_at TIMESTAMPTZ;    -- finished (or skipped) "connect your pebble(a)"
+
+DO $$ BEGIN
+    ALTER TABLE users ADD CONSTRAINT users_sex_check CHECK (sex IN ('male', 'female', 'other'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+    ALTER TABLE users ADD CONSTRAINT users_birth_year_check CHECK (birth_year BETWEEN 1900 AND 2100);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Accounts that already own a robot don't need the setup screens again.
+UPDATE users u SET robot_setup_at = now()
+WHERE robot_setup_at IS NULL AND EXISTS (SELECT 1 FROM devices d WHERE d.owner_user_id = u.id);

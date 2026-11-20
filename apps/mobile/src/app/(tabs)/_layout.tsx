@@ -1,8 +1,15 @@
 import { Tabs } from 'expo-router/js-tabs';
+import { useEffect } from 'react';
+import { watchAlarmLaunches } from '../../lib/med-alarms';
 import { PebbleTabBar } from '../../components/tab-bar';
 import { colors } from '../../theme';
+import { useTheme } from '../../lib/theme-mode';
 
 export default function TabsLayout() {
+  useTheme();
+  // Opened from a ringing medicine alarm -> today's doses.
+  useEffect(() => watchAlarmLaunches(), []);
+
   return (
     <Tabs
       tabBar={(props) => <PebbleTabBar state={props.state} navigateToTab={props.navigateToTab} />}

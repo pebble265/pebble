@@ -9,7 +9,8 @@ import { JwtService } from '@nestjs/jwt';
 import { createHash, randomInt, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthDevice } from './device-auth.guard';
-import { HeartbeatDto } from './dto/devices.dto';
+import { HeartbeatDto, type RobotAction } from './dto/devices.dto';
+import { RealtimeGateway } from '../notifications/realtime.gateway';
 
 const PAIRING_CODE_MINUTES = 10;
 const DEVICE_TOKEN_TTL = '1h';
@@ -47,7 +48,23 @@ export class DevicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly realtime: RealtimeGateway,
   ) {}
+
+  /**
+   * App -> robot remote control. Sent over the realtime socket as
+   * "robot:command" { action, at } to the robot's room. Returns whether the
+   * robot looked online (it may still miss it if it just dropped off).
+   */
+  async command(userId: string, deviceId: string, action: RobotAction) {
+    const device = await this.prisma.devices.findFirst({
+      where: { id: deviceId, owner_user_id: userId },
+      select: { id: true, status: true },
+    });
+    if (!device) throw new NotFoundException('Robot not found');
+    this.realtime.toDevice(device.id, 'robot:command', { action, at: new Date().toISOString() });
+    return { sent: true, online: ['online', 'charging'].includes(device.status) };
+  }
 
   // =====================================================================
   // Robot side
@@ -242,13 +259,15 @@ export class DevicesService {
   }
 
   /** User types the 6-digit code shown on the robot. */
-  async pair(userId: string, code: string) {
+  async pair(userId: string, code: string, serialNumber?: string) {
     const now = new Date();
     const device = await this.prisma.devices.findFirst({
       where: {
         pairing_code_hash: sha256(code),
         pairing_expires_at: { gt: now },
         owner_user_id: null,
+        // Over Bluetooth the app also knows which robot it talked to.
+        ...(serialNumber && { serial_number: serialNumber }),
       },
       select: { id: true, last_seen_at: true },
     });
@@ -273,6 +292,12 @@ export class DevicesService {
       },
     });
     if (count === 0) throw new ConflictException('Robot was just paired by someone else');
+
+    // First robot: the setup screens are done.
+    await this.prisma.users.updateMany({
+      where: { id: userId, robot_setup_at: null },
+      data: { robot_setup_at: now },
+    });
 
     const row = await this.prisma.devices.findUniqueOrThrow({
       where: { id: device.id },

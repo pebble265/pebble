@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Text } from './text';
 import { colors, shadow, space } from '../theme';
 
 function soon() {

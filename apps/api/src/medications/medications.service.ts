@@ -57,6 +57,7 @@ export class MedicationsService {
           ),
           dispenser_slot: dto.dispenserSlot ?? null,
           pills_remaining: dto.pillsRemaining ?? null,
+          ...(dto.sound && { alarm_sound: dto.sound }),
         },
       });
 
@@ -108,6 +109,7 @@ export class MedicationsService {
           ...(dto.pillsRemaining !== undefined && {
             pills_remaining: dto.pillsRemaining,
           }),
+          ...(dto.sound !== undefined && { alarm_sound: dto.sound }),
         },
       });
 
@@ -214,6 +216,7 @@ export class MedicationsService {
       instructions: this.crypto.decryptOptional(m.instructions_enc),
       dispenserSlot: m.dispenser_slot,
       pillsRemaining: m.pills_remaining,
+      sound: m.alarm_sound,
       isActive: m.is_active,
       schedules: current.map((s) => ({
         id: s.id,

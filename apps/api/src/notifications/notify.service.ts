@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PUSH_PROVIDER } from './push.provider';
 import type { PushMessage, PushProvider } from './push.provider';
@@ -45,6 +46,7 @@ export class NotifyService {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeGateway,
     @Inject(PUSH_PROVIDER) private readonly push: PushProvider,
+    private readonly mail: MailService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -107,6 +109,35 @@ export class NotifyService {
       }
     }
     await this.pushToUsers(perRecipient, priority);
+    await this.emailCaretakers(a, name, text.caretaker);
+  }
+
+  /**
+   * Caretakers are told by email (the app has no push). Same wording as the lock-screen text:
+   * never a medication name. A failed email is logged and doesn't stop the other recipients.
+   */
+  private async emailCaretakers(a: AlertFanout, name: string, what: string) {
+    const ids = [...new Set(a.deliveries.map((d) => d.caretakerUserId).filter((id): id is string => !!id))];
+    if (!ids.length) return;
+    const people = await this.prisma.users.findMany({
+      where: { id: { in: ids }, deleted_at: null },
+      select: { email: true },
+    });
+    const urgent = a.type === 'crisis';
+    const subject = `${urgent ? '⚠️ ' : ''}Pebble · ${name}: ${what}`;
+    const text = [
+      `${name}: ${what}`,
+      '',
+      ...(urgent
+        ? ['กรุณาติดต่อเขาโดยเร็ว ถ้าเป็นเหตุฉุกเฉินโทร 1669 หรือสายด่วนสุขภาพจิต 1323 (24 ชั่วโมง)', '']
+        : []),
+      'เปิดแอป Pebble → โปรไฟล์ → ผู้ดูแล เพื่อดูรายละเอียดและกด "รับทราบ"',
+    ].join('\n');
+    for (const p of people) {
+      await this.mail.send({ to: p.email, subject, text }).catch((e: Error) => {
+        this.logger.warn(`Caretaker alert email failed: ${e.message}`);
+      });
+    }
   }
 
   // ---------------------------------------------------------------------

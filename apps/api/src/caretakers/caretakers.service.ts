@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { addDays, localDateOf, zonedToUtc } from '../common/time';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { isConsentActive } from '../privacy/consent';
 import { CreateInviteDto, PermissionsDto } from './dto/caretakers.dto';
@@ -21,9 +22,36 @@ const MAX_CARETAKERS = 10;
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 
+/** The email a new caretaker gets: who invited them, the code, and how to accept. */
+function inviteMail(to: string, inviter: string, token: string, expiresAt: Date) {
+  const link = `pebble://me/caretaker-join?token=${encodeURIComponent(token)}`;
+  const until = expiresAt.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' });
+  const text = [
+    `${inviter} ชวนคุณเป็นผู้ดูแลใน Pebble(a)`,
+    '',
+    'ผู้ดูแลจะได้รับอีเมลแจ้งเตือนตามที่เขาเลือกไว้ เช่น เมื่อลืมกินยา หรือเมื่ออาจต้องการความช่วยเหลือ',
+    'Pebble ไม่แชร์ข้อความแชท โน้ต หรือชื่อยา',
+    '',
+    'วิธีตอบรับ:',
+    '1. ติดตั้งแอป Pebble และสมัครด้วยอีเมลนี้',
+    '2. ไปที่ โปรไฟล์ → ผู้ดูแล → ใส่รหัสเชิญ',
+    '3. วางรหัสนี้:',
+    '',
+    token,
+    '',
+    `หรือเปิดลิงก์นี้บน iPhone ที่มีแอป: ${link}`,
+    '',
+    `รหัสนี้ใช้ได้ถึง ${until}`,
+  ].join('\n');
+  return { to, subject: `${inviter} ชวนคุณเป็นผู้ดูแลใน Pebble(a)`, text };
+}
+
 @Injectable()
 export class CaretakersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   // =====================================================================
   // The person being cared for (manages their own caretakers)
@@ -37,7 +65,7 @@ export class CaretakersService {
     }
     const me = await this.prisma.users.findUniqueOrThrow({
       where: { id: userId },
-      select: { email: true },
+      select: { email: true, display_name: true },
     });
     const email = dto.email?.trim().toLowerCase();
     if (email && email === me.email.toLowerCase()) {
@@ -70,8 +98,18 @@ export class CaretakersService {
       return created;
     });
 
-    // The token is returned ONCE. The app turns it into a share link / QR.
-    return { id: link.id, token, expiresAt };
+    // With an email, the invite (code + link) is emailed too. A mail failure doesn't undo the
+    // invite: the app still shows the code to share another way.
+    let emailed = false;
+    if (email) {
+      emailed = await this.mail
+        .send(inviteMail(email, me.display_name, token, expiresAt))
+        .then(() => this.mail.configured)
+        .catch(() => false);
+    }
+
+    // The token is returned ONCE. The app shows it as a code to share.
+    return { id: link.id, token, expiresAt, emailed };
   }
 
   async listMyCaretakers(userId: string) {
@@ -237,17 +275,14 @@ export class CaretakersService {
     }
 
     if (perms.viewMoodTrend) {
+      // Mood check-in scores only (1 = very low … 7 = great). Notes are never shared.
       const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-      const moods = await this.prisma.conversation_summaries.findMany({
-        where: {
-          created_at: { gte: since },
-          mood_score: { not: null },
-          conversations: { user_id: personId, deleted_at: null },
-        },
-        select: { mood_score: true, created_at: true },
+      const moods = await this.prisma.mood_checkins.findMany({
+        where: { user_id: personId, created_at: { gte: since } },
+        select: { score: true, created_at: true },
         orderBy: { created_at: 'asc' },
       });
-      result.moodTrend = moods.map((m) => ({ at: m.created_at, score: m.mood_score }));
+      result.moodTrend = moods.map((m) => ({ at: m.created_at, score: m.score }));
     }
 
     // PDPA: record that someone else looked at this person's data.

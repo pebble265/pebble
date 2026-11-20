@@ -2,6 +2,7 @@ import { Global, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NotifyJobs } from './notify.jobs';
 import { NotifyService } from './notify.service';
+import { MailService } from '../mail/mail.service';
 import {
   ExpoPushProvider,
   LogPushProvider,
@@ -35,6 +36,7 @@ import { RealtimeGateway } from './realtime.gateway';
       },
     },
     RealtimeGateway,
+    MailService,
     NotifyService,
     NotifyJobs,
   ],

@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../auth/jwt-auth.guard';
 import { ConsentGuard } from '../privacy/consent.guard';
-import { CreateMoodDto, MoodQueryDto } from './dto/mood.dto';
+import { CreateMoodDto, MoodQueryDto, UpdateMoodNoteDto } from './dto/mood.dto';
 import { MoodsService } from './moods.service';
 
 /** Mood is health data, so it sits behind the same consent as medications. */
@@ -12,10 +12,20 @@ import { MoodsService } from './moods.service';
 export class MoodsController {
   constructor(private readonly moods: MoodsService) {}
 
-  /** POST /moods  { score: 1..7 } */
+  /** POST /moods  { score: 1..7, note? } */
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateMoodDto) {
-    return this.moods.create(user.id, dto.score, dto.source);
+    return this.moods.create(user.id, dto.score, dto.source, dto.note);
+  }
+
+  /** PATCH /moods/:id  { note } — "" clears it */
+  @Patch(':id')
+  setNote(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateMoodNoteDto,
+  ) {
+    return this.moods.setNote(user.id, id, dto.note);
   }
 
   /** GET /moods?days=14 */

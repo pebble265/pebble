@@ -1,36 +1,83 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { TAB_BAR_SPACE } from '../../components/tab-bar';
-import { Button, Card, confirm, ErrorText, RobotFace } from '../../components/ui';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { BlurView } from 'expo-blur';
+import { router, useFocusEffect } from 'expo-router';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../components/text';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFigmaScale, useFrameHeight, useS } from '../../components/figma';
+import { SpotifyCard } from '../../components/spotify-card';
+import { useTabBarHeight } from '../../components/tab-bar';
+import { confirm } from '../../components/ui';
 import { api, errorText } from '../../lib/api';
 import type { Device, RobotSettings } from '../../lib/types';
-import { colors, shadow, space, type } from '../../theme';
+import { colors, gradients, isDark, shadow, themedStyles } from '../../theme';
+import { useTheme } from '../../lib/theme-mode';
+import { UserPhoto } from '../../components/user-ui';
 
-const STATUS: Record<Device['status'], string> = {
-  online: 'ออนไลน์',
-  charging: 'กำลังชาร์จ',
-  offline: 'ออฟไลน์',
-  error: 'มีปัญหา',
-  unpaired: 'ยังไม่จับคู่',
+const STATUS: Record<Device['status'], { text: string; color: string }> = {
+  online: { text: 'ออนไลน์', color: '#34C759' },
+  charging: { text: 'กำลังชาร์จ', color: '#34C759' },
+  offline: { text: 'ออฟไลน์', color: colors.muted },
+  error: { text: 'มีปัญหา', color: '#E5484D' },
+  unpaired: { text: 'ยังไม่จับคู่', color: colors.muted },
 };
 
-/** "pebble" tab: the robot itself. Pair with the 6-digit code shown on its screen. */
+type Action = 'wake' | 'forward' | 'backward' | 'stop';
+
+/** A pretend robot so the screen can be tried before pairing. Nothing is sent anywhere. */
+const DEMO_DEVICE: Device = {
+  id: 'demo',
+  serialNumber: 'DEMO',
+  status: 'online',
+  batteryLevel: 80,
+  firmwareVersion: 'demo',
+  pillSlots: 2,
+  lastSeenAt: null,
+  pairedAt: null,
+};
+/** Kept outside the component so it survives switching tabs (until the app restarts). */
+const demoState = { on: false };
+
+/** White "glass" card of the design (a function so it follows light / dark). */
+const card = () =>
+  ({
+    backgroundColor: colors.surface,
+    backgroundImage: gradients.card,
+    boxShadow: '0 -3px 12px rgba(0,0,0,0.07)',
+  }) as const;
+
+/** Figma "pebble(a) - Pebble / Pebble Waked / Pebble Control". */
 export default function Robot() {
+  useTheme();
+  const s = useS();
+  const frameH = useFrameHeight(useFigmaScale());
+  const insets = useSafeAreaInsets();
+  const barHeight = useTabBarHeight();
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [settings, setSettings] = useState<RobotSettings | null>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [waked, setWaked] = useState(false);
+  const [waking, setWaking] = useState(false);
+  const [control, setControl] = useState(false);
+  const wakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [demo, setDemoState] = useState(demoState.on);
+  const setDemo = (on: boolean) => {
+    demoState.on = on;
+    setDemoState(on);
+    setError('');
+    setWaked(false);
+  };
 
   const load = useCallback(async () => {
     try {
-      const [d, s] = await Promise.all([api<Device[]>('/devices'), api<RobotSettings>('/robot-settings')]);
+      const [d, st] = await Promise.all([api<Device[]>('/devices'), api<RobotSettings>('/robot-settings')]);
       setDevices(d);
-      setSettings(s);
+      setSettings(st);
       setError('');
     } catch (e) {
       setError(errorText(e));
@@ -42,6 +89,41 @@ export default function Robot() {
       load();
     }, [load]),
   );
+  useEffect(() => () => void (wakeTimer.current && clearTimeout(wakeTimer.current)), []);
+
+  const realDevice = devices?.[0];
+  // a real robot always wins over the test one
+  const device = realDevice ?? (demo ? DEMO_DEVICE : undefined);
+  const isDemo = !realDevice && demo;
+  const name = settings?.robotName ?? 'pebble(a)';
+  const status = device ? STATUS[device.status] : null;
+
+  async function send(action: Action) {
+    if (!device) return false;
+    if (isDemo) {
+      setError('');
+      return true; // test robot: pretend it worked
+    }
+    try {
+      const r = await api<{ sent: boolean; online: boolean }>(`/devices/${device.id}/command`, { method: 'POST', body: { action } });
+      if (!r.online) setError(`${name} ออฟไลน์อยู่ คำสั่งอาจไปไม่ถึง`);
+      else setError('');
+      return true;
+    } catch (e) {
+      setError(errorText(e));
+      return false;
+    }
+  }
+
+  async function wake() {
+    setWaking(true);
+    const ok = await send('wake');
+    setWaking(false);
+    if (!ok) return;
+    setWaked(true);
+    if (wakeTimer.current) clearTimeout(wakeTimer.current);
+    wakeTimer.current = setTimeout(() => setWaked(false), 4000);
+  }
 
   async function pair() {
     if (!/^\d{6}$/.test(code)) return setError('รหัสจับคู่ต้องเป็นตัวเลข 6 หลักบนหน้าจอหุ่น');
@@ -59,22 +141,25 @@ export default function Robot() {
   }
 
   async function unpair(d: Device) {
+    if (isDemo) {
+      setControl(false);
+      setDemo(false);
+      return;
+    }
     if (!(await confirm('เลิกจับคู่หุ่น?', 'หุ่นจะหยุดเตือนยาและคุยกับคุณจนกว่าจะจับคู่ใหม่', 'เลิกจับคู่'))) return;
     try {
       await api(`/devices/${d.id}`, { method: 'DELETE' });
+      setControl(false);
       await load();
     } catch (e) {
       setError(errorText(e));
     }
   }
 
-  const device = devices?.[0];
-  const online = device && ['online', 'charging'].includes(device.status);
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.page}
+    <View style={{ flex: 1, backgroundColor: colors.page, backgroundImage: gradients.screen }}>
+      <ScrollView alwaysBounceVertical={false}
+        contentContainerStyle={{ height: frameH, paddingBottom: barHeight }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -86,90 +171,236 @@ export default function Robot() {
             }}
           />
         }>
-        <View style={styles.hero}>
-          <RobotFace size={120} awake={!!online} />
-          <Text style={styles.heroTitle}>{device ? (settings?.robotName ?? 'pebble(a)') : 'เชื่อมต่อ pebble(a)\nตัวแรกของคุณ'}</Text>
+        {/* the robot (bleeds off the right edge, like the design) */}
+        <Image
+          source={require('../../../assets/images/robot-photo.png')}
+          style={{ position: 'absolute', left: s(90), top: s(164), width: s(532), height: s(532), opacity: device ? 1 : 0.35 }}
+          accessibilityIgnoresInvertColors
+        />
+
+        {/* header */}
+        <At left={45} top={102} w={260} h={80}>
+          <Text style={{ fontSize: s(16), fontWeight: '500', color: colors.ink }}>หุ่นของฉัน</Text>
+          <Text numberOfLines={1} style={{ fontSize: s(36), fontWeight: '700', color: colors.ink, letterSpacing: -0.5, marginTop: s(-2) }}>
+            {name}
+          </Text>
+          <Text style={{ fontSize: s(10), color: colors.ink, marginTop: s(-3) }}>
+            {device ? (device.status === 'online' || device.status === 'charging' ? 'เชื่อมต่อแล้ว' : status?.text) : 'ยังไม่ได้เชื่อมต่อ'}
+          </Text>
+        </At>
+        <Pressable
+          onPress={() => router.navigate('/me')}
+          accessibilityRole="button"
+          accessibilityLabel="โปรไฟล์"
+          style={{ position: 'absolute', left: s(319), top: s(109) }}>
+          <UserPhoto px={s(43)} />
+        </Pressable>
+
+        {isDemo && (
+          <View style={{ position: 'absolute', left: s(45), top: s(178), flexDirection: 'row', alignItems: 'center', gap: s(6) }}>
+            <View style={{ paddingHorizontal: s(8), paddingVertical: s(2), borderRadius: 999, backgroundColor: '#FFE9A8' }}>
+              <Text style={{ fontSize: s(9), fontWeight: '700', color: '#7A5A00' }}>โหมดทดสอบ</Text>
+            </View>
+            <Pressable onPress={() => setDemo(false)} hitSlop={8} accessibilityRole="button">
+              <Text style={{ fontSize: s(9), color: colors.muted, textDecorationLine: 'underline' }}>ออก</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {device ? (
+          <>
+            {/* battery */}
+            <At left={80} top={199} w={155} h={70} style={{ ...card(), borderRadius: s(22), alignItems: 'center', justifyContent: 'center', gap: s(6) }}>
+              <MaterialCommunityIcons
+                name={device.status === 'charging' ? 'battery-charging' : batteryIcon(device.batteryLevel)}
+                size={s(18)}
+                color={colors.ink}
+                style={{ transform: [{ rotate: '90deg' }] }}
+              />
+              <Text style={{ fontSize: s(13), fontWeight: '700' }}>แบตเตอรี่ | {device.batteryLevel == null ? '–' : `${device.batteryLevel}%`}</Text>
+            </At>
+
+            {/* status */}
+            <At left={40} top={291} w={138} h={46} style={{ ...card(), borderRadius: s(20), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(5) }}>
+              <Text style={{ fontSize: s(13), fontWeight: '700' }}>สถานะ :</Text>
+              <Text style={{ fontSize: s(13), fontWeight: '500', color: status!.color }}>{status!.text}</Text>
+              <View style={{ width: s(6), height: s(6), borderRadius: 999, backgroundColor: status!.color }} />
+            </At>
+
+            {/* music: the user's Spotify */}
+            <At left={24} top={366} w={136} h={52} style={{ ...card(), borderRadius: s(11) }}>
+              <SpotifyCard />
+            </At>
+
+            {/* wake */}
+            {waked ? (
+              <At
+                left={24}
+                top={440}
+                w={136}
+                h={73}
+                style={{
+                  borderRadius: s(20),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#5FD763',
+                  backgroundImage: 'linear-gradient(180deg, #5FD763 67.71%, #262323 257.29%)',
+                  boxShadow: '0 -5px 14.5px rgba(0,0,0,0.09)',
+                }}>
+                <Text style={{ fontSize: s(13), fontWeight: '700', color: '#FFF' }}>ปลุกแล้ว!</Text>
+              </At>
+            ) : (
+              <At left={24} top={440} w={136} h={73} style={{ ...card(), borderRadius: s(20), paddingLeft: s(14), justifyContent: 'center', gap: s(9) }}>
+                <Text style={{ fontSize: s(13), fontWeight: '700' }}>ปลุก {name}!</Text>
+                <Pressable
+                  onPress={wake}
+                  disabled={waking}
+                  accessibilityRole="button"
+                  accessibilityLabel={`ปลุก ${name}`}
+                  style={{ width: s(56), height: s(20), borderRadius: 999, backgroundColor: '#6CCB6A', alignItems: 'center', justifyContent: 'center' }}>
+                  {waking ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ fontSize: s(9), color: '#FFF', fontWeight: '600' }}>ปลุก</Text>}
+                </Pressable>
+              </At>
+            )}
+
+            {/* control */}
+            <View style={{ position: 'absolute', left: 0, right: 0, top: s(686), alignItems: 'center' }}>
+              <Pressable
+                onPress={() => setControl(true)}
+                accessibilityRole="button"
+                style={{ ...card(), width: s(154), height: s(50), borderRadius: s(22), flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(6) }}>
+                <MaterialCommunityIcons name="remote" size={s(18)} color={colors.ink} />
+                <Text style={{ fontSize: s(13), fontWeight: '700' }}>ควบคุมหุ่น</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          devices && (
+            <At left={24} top={448} w={354} h={244} style={{ borderRadius: s(24), backgroundColor: isDark() ? 'rgba(28,28,31,0.96)' : 'rgba(255,255,255,0.96)', boxShadow: shadow.card, padding: s(18), gap: s(10) }}>
+              <Text style={{ fontSize: s(17), fontWeight: '700', color: colors.ink }}>จับคู่หุ่น</Text>
+              <Text style={{ fontSize: s(12), color: colors.muted }}>เปิดหุ่น pebble(a) แล้วใส่รหัส 6 หลักที่ขึ้นบนหน้าจอของหุ่น</Text>
+              <TextInput
+                value={code}
+                onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                placeholder="000000"
+                placeholderTextColor={colors.faint}
+                style={[styles.code, { height: s(48), fontSize: s(24) }]}
+                maxLength={6}
+                accessibilityLabel="รหัสจับคู่ 6 หลัก"
+              />
+              <Pressable
+                onPress={pair}
+                disabled={busy}
+                accessibilityRole="button"
+                style={{ height: s(44), borderRadius: 999, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+                {busy ? <ActivityIndicator color={colors.primaryText} /> : <Text style={{ color: colors.primaryText, fontSize: s(15), fontWeight: '700' }}>เชื่อมต่อ</Text>}
+              </Pressable>
+              <Pressable onPress={() => setDemo(true)} accessibilityRole="button" style={{ height: s(34), alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: s(13), fontWeight: '600', color: colors.blue }}>ยังไม่มีหุ่น? ลองกับหุ่นทดสอบ</Text>
+              </Pressable>
+            </At>
+          )
+        )}
+
+        {error ? (
+          <View style={{ position: 'absolute', left: s(24), right: s(24), top: s(device ? 646 : 680), alignItems: 'center' }}>
+            <Text style={{ color: '#E5484D', fontSize: s(12), fontWeight: '600', textAlign: 'center' }}>{error}</Text>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {/* "Pebble Control" sheet */}
+      <Modal visible={control} transparent animationType="fade" onRequestClose={() => setControl(false)}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setControl(false)} accessibilityLabel="ปิด">
+          <BlurView intensity={20} tint="default" style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.06)' }} />
+        </Pressable>
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            borderTopLeftRadius: s(40),
+            borderTopRightRadius: s(40),
+            backgroundColor: colors.fill,
+            paddingTop: s(36),
+            paddingBottom: insets.bottom + s(24),
+            paddingHorizontal: s(56),
+            alignItems: 'center',
+            gap: s(10),
+          }}>
+          <Text style={{ fontSize: s(24), fontWeight: '700', color: colors.ink }}>{name}</Text>
+          <Text style={{ fontSize: s(9), color: colors.ink, marginTop: s(-10) }}>{status && device?.status === 'online' ? 'เชื่อมต่อแล้ว' : status?.text}</Text>
+          <Text style={{ fontSize: s(11), color: colors.muted, marginBottom: s(6) }}>
+            {isDemo ? 'โหมดทดสอบ: ปุ่มกดได้ แต่ไม่มีคำสั่งไปที่หุ่นจริง' : 'กดค้างเพื่อให้หุ่นเคลื่อนที่ ปล่อยเพื่อหยุด'}
+          </Text>
+          <HoldButton label="เดินหน้า" primary onStart={() => send('forward')} onEnd={() => send('stop')} />
+          <HoldButton label="ถอยหลัง" onStart={() => send('backward')} onEnd={() => send('stop')} />
           {device && (
-            <Text style={styles.heroSub}>
-              {STATUS[device.status]}
-              {device.batteryLevel != null ? ` · แบต ${device.batteryLevel}%` : ''}
-            </Text>
+            <Pressable onPress={() => unpair(device)} accessibilityRole="button" hitSlop={8} style={{ marginTop: s(8) }}>
+              <Text style={{ fontSize: s(12), color: '#E5484D', fontWeight: '600' }}>{isDemo ? 'ออกจากโหมดทดสอบ' : 'เลิกจับคู่หุ่น'}</Text>
+            </Pressable>
           )}
         </View>
-        <ErrorText>{error}</ErrorText>
-
-        {devices && !device && (
-          <Card style={{ gap: space.md }}>
-            <Text style={type.heading}>จับคู่หุ่น</Text>
-            <Text style={type.small}>เปิดหุ่น pebble(a) แล้วใส่รหัส 6 หลักที่ขึ้นบนหน้าจอของหุ่น</Text>
-            <TextInput
-              value={code}
-              onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
-              keyboardType="number-pad"
-              placeholder="000000"
-              placeholderTextColor="#C4C4CA"
-              style={styles.code}
-              maxLength={6}
-              accessibilityLabel="รหัสจับคู่ 6 หลัก"
-            />
-            <Button title="เชื่อมต่อ" leadingArrow onPress={pair} loading={busy} />
-          </Card>
-        )}
-
-        {device && (
-          <Card style={{ gap: space.md }}>
-            <Text style={type.heading}>ข้อมูลหุ่น</Text>
-            {[
-              ['หมายเลขเครื่อง', device.serialNumber],
-              ['ช่องใส่ยา', `${device.pillSlots} ช่อง`],
-              ['เฟิร์มแวร์', device.firmwareVersion ?? '–'],
-              ['เสียงเรียก', settings?.wakeWord ?? '–'],
-            ].map(([k, v]) => (
-              <View key={k} style={styles.kv}>
-                <Text style={type.small}>{k}</Text>
-                <Text style={type.label}>{v}</Text>
-              </View>
-            ))}
-            <Button title="เลิกจับคู่" variant="danger" small onPress={() => unpair(device)} />
-          </Card>
-        )}
-
-        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-          <Ionicons name="mic-outline" size={22} color={colors.muted} />
-          <View style={{ flex: 1 }}>
-            <Text style={type.label}>เลือกเสียงของหุ่น</Text>
-            <Text style={type.small}>เร็ว ๆ นี้</Text>
-          </View>
-        </Card>
-      </ScrollView>
-    </SafeAreaView>
+      </Modal>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  page: { padding: space.xl, paddingBottom: TAB_BAR_SPACE + 10, gap: space.lg, maxWidth: 640, width: '100%', alignSelf: 'center' },
-  hero: {
-    alignItems: 'center',
-    gap: space.md,
-    paddingVertical: space.xl,
-    borderRadius: 28,
-    backgroundImage: 'linear-gradient(160deg, #1C1C22 0%, #2E3B66 55%, #C46B7A 100%)',
-    backgroundColor: '#24263A',
-    boxShadow: shadow.card,
-  },
-  heroTitle: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', textAlign: 'center', letterSpacing: -0.4 },
-  heroSub: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
+/** Box placed in the design's 402-wide coordinates. */
+function At({ left, top, w, h, children, style }: { left: number; top: number; w: number; h: number; children: ReactNode; style?: object }) {
+  const s = useS();
+  return <View style={[{ position: 'absolute', left: s(left), top: s(top), width: s(w), height: s(h) }, style]}>{children}</View>;
+}
+
+function batteryIcon(level: number | null): 'battery' | 'battery-outline' | 'battery-20' | 'battery-50' | 'battery-80' {
+  if (level == null) return 'battery-outline';
+  if (level <= 25) return 'battery-20';
+  if (level <= 60) return 'battery-50';
+  if (level <= 90) return 'battery-80';
+  return 'battery';
+}
+
+/** Forward / Backward: moves while held, stops on release. */
+function HoldButton({ label, primary, onStart, onEnd }: { label: string; primary?: boolean; onStart(): void; onEnd(): void }) {
+  const s = useS();
+  const [down, setDown] = useState(false);
+  return (
+    <Pressable
+      onPressIn={() => {
+        setDown(true);
+        onStart();
+      }}
+      onPressOut={() => {
+        setDown(false);
+        onEnd();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={{
+        width: s(289),
+        height: s(50),
+        borderRadius: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: primary ? (down ? '#4E8FE8' : '#6EA8F5') : down ? (isDark() ? '#2A2A2E' : '#EDEDF2') : isDark() ? colors.surface : '#FFF',
+        boxShadow: primary ? '0 4px 12px rgba(110,168,245,0.35)' : '0 2px 8px rgba(0,0,0,0.05)',
+      }}>
+      <Text style={{ fontSize: s(14), fontWeight: '600', color: primary ? '#FFF' : colors.ink }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const styles = themedStyles(() =>
+  StyleSheet.create({
   code: {
-    height: 56,
     borderRadius: 14,
     backgroundColor: colors.surfaceAlt,
-    fontSize: 28,
     letterSpacing: 10,
     textAlign: 'center',
     fontWeight: '700',
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
-  kv: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-});
-
+}));

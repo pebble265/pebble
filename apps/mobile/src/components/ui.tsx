@@ -1,19 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  type TextInputProps,
-  View,
-  type ViewStyle,
-} from 'react-native';
-import { colors, gradients, PERIODS, periodOf, radius, shadow, space, type } from '../theme';
+import { ActivityIndicator, Platform, Pressable, type TextInputProps, View, type ViewStyle, StyleSheet } from 'react-native';
+import { t } from '../lib/i18n';
+import { Alert, Text, TextInput } from './text';
+import { colors, gradients, periodOf, PERIODS, radius, shadow, space, themedStyles, type } from '../theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -189,7 +180,7 @@ export function RobotFace({ size = 56, awake = false }: { size?: number; awake?:
           key={i}
           style={
             awake
-              ? { width: eyeW * 0.7, height: eyeW * 1.1, borderRadius: eyeW, backgroundColor: '#FFFFFF' }
+              ? { width: eyeW * 0.7, height: eyeW * 1.1, borderRadius: eyeW, backgroundColor: colors.surface }
               : {
                   width: eyeW,
                   height: eyeW * 0.5,
@@ -262,7 +253,7 @@ export function EmptyState({
 /** Native confirm dialog; falls back to window.confirm on web. */
 export function confirm(title: string, message: string, okLabel = 'ยืนยัน'): Promise<boolean> {
   if (Platform.OS === 'web') {
-    return Promise.resolve(typeof window !== 'undefined' ? window.confirm(`${title}\n\n${message}`) : false);
+    return Promise.resolve(typeof window !== 'undefined' ? window.confirm(`${t(title)}\n\n${t(message)}`) : false);
   }
   return new Promise((resolve) =>
     Alert.alert(title, message, [
@@ -272,7 +263,8 @@ export function confirm(title: string, message: string, okLabel = 'ยืนย�
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() =>
+  StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -297,7 +289,7 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 46,
     borderWidth: 1,
-    borderColor: '#D9D9DE',
+    borderColor: colors.line,
     borderRadius: 10,
     paddingHorizontal: space.md,
     fontSize: 16,
@@ -347,4 +339,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

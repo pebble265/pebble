@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -11,6 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ScheduleDto } from './schedule.dto';
+import { ALARM_SOUNDS, type AlarmSound } from '../sounds';
 
 export class CreateMedicationDto {
   @IsString()
@@ -46,4 +48,9 @@ export class CreateMedicationDto {
   @ValidateNested({ each: true })
   @Type(() => ScheduleDto)
   schedules!: ScheduleDto[];
+
+  /** Alarm sound for this medicine's reminders (see ALARM_SOUNDS) */
+  @IsOptional()
+  @IsIn(ALARM_SOUNDS)
+  sound?: AlarmSound;
 }

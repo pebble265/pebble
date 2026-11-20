@@ -10,6 +10,7 @@ import {
   maskToDays,
   timeColumnToString,
 } from '../common/time';
+import { AuthService, NO_PASSWORD } from '../auth/auth.service';
 import { CryptoService } from '../crypto/crypto.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { POLICY_VERSION } from '../users/users.service';
@@ -25,6 +26,7 @@ export class PrivacyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
+    private readonly auth: AuthService,
   ) {}
 
   // =====================================================================
@@ -36,7 +38,7 @@ export class PrivacyService {
 
     const [
       user, consents, settings, contacts, meds, doses, devices,
-      myCaretakers, caringFor, conversations, memories, alerts, tokens, accessLog, moods,
+      myCaretakers, caringFor, conversations, memories, alerts, tokens, accessLog, moods, identities,
     ] = await Promise.all([
       p.users.findUniqueOrThrow({ where: { id: userId } }),
       p.consents.findMany({ where: { user_id: userId }, orderBy: { granted_at: 'asc' } }),
@@ -61,6 +63,7 @@ export class PrivacyService {
       p.push_tokens.findMany({ where: { user_id: userId } }),
       p.audit_logs.findMany({ where: { target_user_id: userId }, orderBy: { created_at: 'asc' } }),
       p.mood_checkins.findMany({ where: { user_id: userId }, orderBy: { created_at: 'asc' } }),
+      p.auth_identities.findMany({ where: { user_id: userId }, orderBy: { created_at: 'asc' } }),
     ]);
 
     const otherIds = [
@@ -97,6 +100,11 @@ export class PrivacyService {
         usesMedication: user.uses_medication,
         onboardedAt: user.onboarded_at,
         createdAt: user.created_at,
+        avatar: dec(user.avatar_enc),
+        medical: (() => {
+          const m = dec(user.medical_enc);
+          return m ? (JSON.parse(m) as unknown) : null;
+        })(),
       },
       consents: consents.map((c) => ({
         type: c.consent_type,
@@ -140,9 +148,16 @@ export class PrivacyService {
         confirmedVia: d.confirmed_via,
         note: d.note,
       })),
+      signInAccounts: identities.map((i) => ({
+        provider: i.provider,
+        email: i.email,
+        linkedAt: i.created_at,
+        lastLoginAt: i.last_login_at,
+      })),
       moodCheckins: moods.map((m) => ({
         score: m.score,
         source: m.source,
+        note: dec(m.note_enc),
         createdAt: m.created_at,
       })),
       robots: devices.map((d) => ({
@@ -286,12 +301,24 @@ export class PrivacyService {
   // =====================================================================
   // 3. Delete account (right to erasure) — immediate and permanent
   // =====================================================================
-  async deleteAccount(userId: string, password: string, ip?: string) {
+  async deleteAccount(
+    userId: string,
+    proof: { password?: string; provider?: 'apple' | 'google'; idToken?: string },
+    ip?: string,
+  ) {
     const user = await this.prisma.users.findFirst({
       where: { id: userId, deleted_at: null },
       select: { id: true, password_hash: true },
     });
-    if (!user || !(await argon2.verify(user.password_hash, password))) {
+    if (!user) throw new UnauthorizedException();
+    if (user.password_hash === NO_PASSWORD) {
+      // Apple / Google account: prove it by signing in with that account again.
+      const ok =
+        !!proof.provider &&
+        !!proof.idToken &&
+        (await this.auth.verifySocialOwner(userId, proof.provider, proof.idToken));
+      if (!ok) throw new UnauthorizedException('Please sign in again to confirm');
+    } else if (!proof.password || !(await argon2.verify(user.password_hash, proof.password).catch(() => false))) {
       throw new UnauthorizedException('Password is incorrect');
     }
 

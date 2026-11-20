@@ -2,24 +2,34 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Text } from '../../components/text';
+import { useS } from '../../components/figma';
+import { buildSchedule, ComingBar, type MedItem, NextCard } from '../../components/med-cards';
 import { TAB_BAR_SPACE } from '../../components/tab-bar';
-import { Button, confirm, EmptyState, ErrorText, PillIcon, TimeCapsule } from '../../components/ui';
+import { ErrorText } from '../../components/ui';
 import { api, errorText } from '../../lib/api';
-import { daysLabel } from '../../lib/format';
-import type { Medication } from '../../lib/types';
-import { colors, gradients, shadow, space, type } from '../../theme';
+import { syncMedAlarms } from '../../lib/med-alarms';
+import type { Medication, TodayDoses } from '../../lib/types';
+import { colors, gradients } from '../../theme';
+import { useTheme } from '../../lib/theme-mode';
+import { UserPhoto } from '../../components/user-ui';
 
-/** "Calibrate medication" from the Figma: a blue pill per medicine with its time chips below. */
+/** Figma "pebble(a) - Med Main": next doses as white cards, later ones as blue bars. */
 export default function Meds() {
+  useTheme();
+  const s = useS();
   const [meds, setMeds] = useState<Medication[] | null>(null);
+  const [today, setToday] = useState<TodayDoses | null>(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setMeds(await api<Medication[]>('/medications'));
+      const [list, t] = await Promise.all([api<Medication[]>('/medications'), api<TodayDoses>('/doses/today')]);
+      setMeds(list);
+      setToday(t);
+      void syncMedAlarms(list, t); // alarm-clock reminders on this phone
       setError('');
     } catch (e) {
       setError(errorText(e));
@@ -32,21 +42,18 @@ export default function Meds() {
     }, [load]),
   );
 
-  async function remove(m: Medication) {
-    const ok = await confirm('ลบยานี้?', `"${m.name}" จะหยุดเตือน ประวัติการกินยายังเก็บไว้`, 'ลบ');
-    if (!ok) return;
-    try {
-      await api(`/medications/${m.id}`, { method: 'DELETE' });
-      setMeds((list) => list?.filter((x) => x.id !== m.id) ?? null);
-    } catch (e) {
-      setError(errorText(e));
-    }
-  }
+  const { next, coming } = buildSchedule(today, meds);
+  const show = (item: MedItem) => router.push({ pathname: '/med-show', params: { item: JSON.stringify(item) } });
+
+  const label = (text: string) => (
+    <Text style={{ marginLeft: s(35), fontSize: s(15), fontWeight: '500', color: colors.ink }}>{text}</Text>
+  );
+  const divider = <View style={{ alignSelf: 'center', width: s(56), height: s(2), borderRadius: s(12), backgroundColor: colors.line }} />;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.page}
+    <View style={{ flex: 1, backgroundColor: colors.page, backgroundImage: gradients.screen }}>
+      <ScrollView alwaysBounceVertical={false}
+        contentContainerStyle={{ paddingTop: s(102), paddingBottom: TAB_BAR_SPACE + 20 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -57,93 +64,75 @@ export default function Meds() {
             }}
           />
         }>
-        <View style={styles.head}>
-          <MaterialCommunityIcons name="pill" size={44} color={colors.text} style={{ transform: [{ rotate: '-35deg' }] }} />
-          <Text style={styles.title}>ยาของฉัน</Text>
-          <Text style={[type.small, { textAlign: 'center' }]}>ยาที่ Pebble เตือนให้ พร้อมเวลากินแต่ละช่วง</Text>
+        {/* header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: s(45), paddingRight: s(37) }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: s(18), fontWeight: '500', color: colors.ink }}>ตารางกินยาและประวัติ</Text>
+            <Text style={{ fontSize: s(36), fontWeight: '700', color: colors.ink, letterSpacing: -0.5 }}>ยาของฉัน</Text>
+          </View>
+          <Pressable onPress={() => router.navigate('/me')} accessibilityRole="button" accessibilityLabel="โปรไฟล์">
+            <UserPhoto px={s(52)} />
+          </Pressable>
         </View>
+
+        <View style={{ height: s(14) }} />
+        {divider}
+        <View style={{ height: s(14) }} />
+
         <ErrorText>{error}</ErrorText>
 
-        {meds && meds.length === 0 && (
-          <EmptyState icon="medkit-outline" title="ยังไม่มียา" text="เพิ่มยาที่กินประจำ แล้ว Pebble จะเตือนเมื่อถึงเวลา" />
+        {meds && meds.length === 0 ? (
+          <View style={{ alignItems: 'center', gap: s(10), paddingHorizontal: s(40), paddingVertical: s(30) }}>
+            <MaterialCommunityIcons name="pill" size={s(44)} color={colors.faint} />
+            <Text style={{ fontSize: s(17), fontWeight: '700' }}>ยังไม่มียา</Text>
+            <Text style={{ fontSize: s(14), color: colors.muted, textAlign: 'center' }}>เพิ่มยาที่กินประจำ แล้ว Pebble จะปลุกเตือนเมื่อถึงเวลา</Text>
+          </View>
+        ) : (
+          <>
+            {label(next[0]?.when ? `ยาถัดไป · ${next[0].when}` : 'ยาถัดไป')}
+            <View style={{ alignItems: 'center', gap: s(11), marginTop: s(10) }}>
+              {next.map((item) => (
+                <NextCard key={item.key} item={item} onPress={() => show(item)} />
+              ))}
+              {meds && !next.length && <Text style={{ fontSize: s(14), color: colors.muted }}>ไม่มียาที่ต้องกินในสัปดาห์นี้</Text>}
+            </View>
+
+            {coming.length > 0 && (
+              <>
+                <View style={{ height: s(15) }} />
+                {divider}
+                <View style={{ height: s(15) }} />
+                {label('ยาที่จะถึงต่อไป')}
+                <View style={{ alignItems: 'center', gap: s(10), marginTop: s(10) }}>
+                  {coming.map((item) => (
+                    <ComingBar key={item.key} item={item} onPress={() => show(item)} />
+                  ))}
+                </View>
+              </>
+            )}
+          </>
         )}
 
-        {meds?.map((m) => (
-          <View key={m.id} style={{ gap: 8 }}>
-            <View style={styles.pill}>
-              <PillIcon size={34} tone="white" />
-              <Text style={styles.pillName} numberOfLines={1}>
-                {m.name}
-              </Text>
-              {m.dosage ? (
-                <Text style={styles.pillDose} numberOfLines={1}>
-                  {m.dosage}
-                </Text>
-              ) : null}
-              <Pressable onPress={() => remove(m)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`ลบ ${m.name}`}>
-                <Ionicons name="trash-outline" size={19} color="#FFFFFF" />
-              </Pressable>
-            </View>
-            <View style={styles.times}>
-              <View style={{ flex: 1, gap: 8 }}>
-                <View style={styles.row}>
-                  <Ionicons name="time-outline" size={18} color={colors.text} />
-                  <Text style={type.label}>เวลากินยา</Text>
-                  {m.schedules[0] && <Text style={type.small}>· {daysLabel(m.schedules[0].daysOfWeek)}</Text>}
-                </View>
-                <View style={[styles.row, { flexWrap: 'wrap' }]}>
-                  {m.schedules.map((s) => (
-                    <TimeCapsule key={s.id} time={s.time} />
-                  ))}
-                  {m.schedules.length === 0 && <Text style={type.small}>ไม่ได้ตั้งเวลา</Text>}
-                </View>
-                {m.instructions ? <Text style={type.small}>{m.instructions}</Text> : null}
-                {m.pillsRemaining != null && (
-                  <Text style={[type.small, m.pillsRemaining <= 5 && { color: colors.warn, fontWeight: '600' }]}>
-                    เหลือ {m.pillsRemaining} เม็ด{m.pillsRemaining <= 5 ? ' · ใกล้หมดแล้ว' : ''}
-                  </Text>
-                )}
-              </View>
-            </View>
-          </View>
-        ))}
-
-        <Button title="เพิ่มยา" icon="add" variant="secondary" onPress={() => router.push('/medication-new')} />
+        {/* manage / add (not in the design: the old list lives one tap away) */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: s(10), marginTop: s(26) }}>
+          {meds && meds.length > 0 && (
+            <Pressable
+              onPress={() => router.push('/meds-manage')}
+              accessibilityRole="button"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: s(6), height: s(40), paddingHorizontal: s(18), borderRadius: 999, backgroundColor: colors.fill }}>
+              <MaterialCommunityIcons name="pencil" size={s(16)} color={colors.ink} />
+              <Text style={{ fontSize: s(14), fontWeight: '600' }}>จัดการยา</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => router.push('/medication-new')}
+            accessibilityRole="button"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: s(4), height: s(40), paddingHorizontal: s(18), borderRadius: 999, backgroundColor: colors.primary }}>
+            <Ionicons name="add" size={s(18)} color={colors.primaryText} />
+            <Text style={{ fontSize: s(14), fontWeight: '600', color: colors.primaryText }}>เพิ่มยา</Text>
+          </Pressable>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  page: {
-    padding: space.xl,
-    paddingBottom: TAB_BAR_SPACE + 10,
-    gap: space.lg,
-    maxWidth: 640,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  head: { alignItems: 'center', gap: space.xs, marginBottom: space.sm },
-  title: { fontSize: 30, fontWeight: '800', color: colors.text, letterSpacing: -0.6 },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: space.md,
-    backgroundImage: gradients.pill,
-    backgroundColor: colors.blue,
-    boxShadow: shadow.soft,
-  },
-  pillName: { flex: 1, color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
-  pillDose: { color: '#FFFFFF', fontSize: 12, maxWidth: 120 },
-  times: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: space.md,
-    boxShadow: shadow.soft,
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-});

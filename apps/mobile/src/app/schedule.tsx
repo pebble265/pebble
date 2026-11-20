@@ -1,13 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View, StyleSheet } from 'react-native';
+import { Text } from '../components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { confirm, ErrorText, PillIcon, TimeCapsule } from '../components/ui';
+import { refreshMedAlarms } from '../lib/med-alarms';
 import { api, errorText } from '../lib/api';
 import { timeOf } from '../lib/format';
 import type { Dose, TodayDoses } from '../lib/types';
-import { colors, gradients, shadow, space } from '../theme';
+import { colors, gradients, shadow, space, themedStyles } from '../theme';
+import { useTheme } from '../lib/theme-mode';
 
 /** The backend refuses "taken" more than 1 hour early. */
 const EARLY_MS = 60 * 60 * 1000;
@@ -17,6 +20,7 @@ const EARLY_MS = 60 * 60 * 1000;
  * pills you can tap to confirm, then the rest of the day as blue pills.
  */
 export default function Schedule() {
+  useTheme();
   const [today, setToday] = useState<TodayDoses | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -44,6 +48,7 @@ export default function Schedule() {
     setError('');
     try {
       const updated = await api<Dose>(`/doses/${d.id}/take`, { method: 'POST', body: { via: 'app' } });
+      void refreshMedAlarms(); // taken before its time: today's alarm for it is dropped
       setToday((t) => t && { ...t, doses: t.doses.map((x) => (x.id === updated.id ? updated : x)) });
     } catch (e) {
       setError(errorText(e));
@@ -55,7 +60,7 @@ export default function Schedule() {
   return (
     <View style={styles.backdrop}>
       <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.page}>
+        <ScrollView alwaysBounceVertical={false} contentContainerStyle={styles.page}>
           <Text style={styles.title}>{'ถึงเวลา\nกินยา'}</Text>
           <ErrorText>{error}</ErrorText>
           {!today && <ActivityIndicator color="#FFFFFF" />}
@@ -125,7 +130,8 @@ export default function Schedule() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() =>
+  StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(44, 44, 50, 0.93)' },
   page: { padding: space.xl, paddingBottom: 120, gap: space.md, maxWidth: 520, width: '100%', alignSelf: 'center' },
   title: {
@@ -141,7 +147,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 26,
     paddingVertical: 10,
     paddingHorizontal: space.lg,
@@ -176,4 +182,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     boxShadow: shadow.float,
   },
-});
+}));
