@@ -24,7 +24,7 @@ const STATUS: Record<Device['status'], { text: string; color: string }> = {
   unpaired: { text: 'ยังไม่จับคู่', color: colors.muted },
 };
 
-type Action = 'wake' | 'forward' | 'backward' | 'stop';
+type Action = 'wake' | 'forward' | 'backward' | 'left' | 'right' | 'stop' | 'wave' | 'box';
 
 /** A pretend robot so the screen can be tried before pairing. Nothing is sent anywhere. */
 const DEMO_DEVICE: Device = {
@@ -336,7 +336,15 @@ export default function Robot() {
             {isDemo ? 'โหมดทดสอบ: ปุ่มกดได้ แต่ไม่มีคำสั่งไปที่หุ่นจริง' : 'กดค้างเพื่อให้หุ่นเคลื่อนที่ ปล่อยเพื่อหยุด'}
           </Text>
           <HoldButton label="เดินหน้า" primary onStart={() => send('forward')} onEnd={() => send('stop')} />
+          <View style={{ flexDirection: 'row', gap: s(9) }}>
+            <HoldButton label="เลี้ยวซ้าย" width={140} onStart={() => send('left')} onEnd={() => send('stop')} />
+            <HoldButton label="เลี้ยวขวา" width={140} onStart={() => send('right')} onEnd={() => send('stop')} />
+          </View>
           <HoldButton label="ถอยหลัง" onStart={() => send('backward')} onEnd={() => send('stop')} />
+          <View style={{ flexDirection: 'row', gap: s(9), marginTop: s(4) }}>
+            <TapButton label="โบกมือ" icon="hand-wave-outline" onPress={() => send('wave')} />
+            <TapButton label="เปิด/ปิดกล่องยา" icon="pill" onPress={() => send('box')} />
+          </View>
           {device && (
             <Pressable onPress={() => unpair(device)} accessibilityRole="button" hitSlop={8} style={{ marginTop: s(8) }}>
               <Text style={{ fontSize: s(12), color: '#E5484D', fontWeight: '600' }}>{isDemo ? 'ออกจากโหมดทดสอบ' : 'เลิกจับคู่หุ่น'}</Text>
@@ -362,8 +370,8 @@ function batteryIcon(level: number | null): 'battery' | 'battery-outline' | 'bat
   return 'battery';
 }
 
-/** Forward / Backward: moves while held, stops on release. */
-function HoldButton({ label, primary, onStart, onEnd }: { label: string; primary?: boolean; onStart(): void; onEnd(): void }) {
+/** Forward / Backward / Left / Right: moves while held, stops on release. */
+function HoldButton({ label, primary, width = 289, onStart, onEnd }: { label: string; primary?: boolean; width?: number; onStart(): void; onEnd(): void }) {
   const s = useS();
   const [down, setDown] = useState(false);
   return (
@@ -379,7 +387,7 @@ function HoldButton({ label, primary, onStart, onEnd }: { label: string; primary
       accessibilityRole="button"
       accessibilityLabel={label}
       style={{
-        width: s(289),
+        width: s(width),
         height: s(50),
         borderRadius: 999,
         alignItems: 'center',
@@ -388,6 +396,31 @@ function HoldButton({ label, primary, onStart, onEnd }: { label: string; primary
         boxShadow: primary ? '0 4px 12px rgba(110,168,245,0.35)' : '0 2px 8px rgba(0,0,0,0.05)',
       }}>
       <Text style={{ fontSize: s(14), fontWeight: '600', color: primary ? '#FFF' : colors.ink }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** One-tap robot action (wave, pill box). */
+function TapButton({ label, icon, onPress }: { label: string; icon: 'hand-wave-outline' | 'pill'; onPress(): void }) {
+  const s = useS();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        width: s(140),
+        height: s(42),
+        borderRadius: 999,
+        flexDirection: 'row',
+        gap: s(6),
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: pressed ? (isDark() ? '#2A2A2E' : '#EDEDF2') : isDark() ? colors.surface : '#FFF',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+      })}>
+      <MaterialCommunityIcons name={icon} size={s(16)} color={colors.ink} />
+      <Text style={{ fontSize: s(12), fontWeight: '600', color: colors.ink }}>{label}</Text>
     </Pressable>
   );
 }

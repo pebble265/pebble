@@ -23,7 +23,11 @@ export class PairDeviceDto {
 }
 
 /** What the app can ask the robot to do from the "pebble" tab. */
-export const ROBOT_ACTIONS = ['wake', 'forward', 'backward', 'stop'] as const;
+/**
+ * wake: say hello + listen · forward/backward/left/right: move until "stop" (sent on release)
+ * wave: wave the arm · box: open/close the pill box
+ */
+export const ROBOT_ACTIONS = ['wake', 'forward', 'backward', 'left', 'right', 'stop', 'wave', 'box'] as const;
 export type RobotAction = (typeof ROBOT_ACTIONS)[number];
 
 /** App -> backend -> robot: a remote-control command. */

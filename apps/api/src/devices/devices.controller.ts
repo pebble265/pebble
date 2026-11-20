@@ -37,7 +37,7 @@ export class DevicesController {
     return this.devices.pair(user.id, dto.code, dto.serialNumber);
   }
 
-  /** POST /devices/:id/command  { action: "wake" | "forward" | "backward" | "stop" } */
+  /** POST /devices/:id/command  { action: "wake" | "forward" | "backward" | "left" | "right" | "stop" | "wave" | "box" } */
   @Post(':id/command')
   @HttpCode(200)
   @Throttle({ default: { limit: 60, ttl: 60_000 } })

@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../auth/jwt-auth.guard';
-import { ConsentGuard } from '../privacy/consent.guard';
+import { CurrentDevice, DeviceAuthGuard } from '../devices/device-auth.guard';
+import type { AuthDevice } from '../devices/device-auth.guard';
+import { ConsentGuard, OwnerConsentGuard } from '../privacy/consent.guard';
 import { CreateMoodDto, MoodQueryDto, UpdateMoodNoteDto } from './dto/mood.dto';
 import { MoodsService } from './moods.service';
 
@@ -32,5 +34,31 @@ export class MoodsController {
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() q: MoodQueryDto) {
     return this.moods.list(user.id, q.days ?? 14);
+  }
+}
+
+/** Mood check-in from the robot's touch screen (device token, for its owner). */
+@Controller('robot/moods')
+@UseGuards(DeviceAuthGuard, OwnerConsentGuard)
+export class RobotMoodsController {
+  constructor(private readonly moods: MoodsService) {}
+
+  private owner(device: AuthDevice): string {
+    if (!device.ownerUserId) throw new ForbiddenException('Robot is not paired to a user yet');
+    return device.ownerUserId;
+  }
+
+  /** POST /robot/moods  { score: 1..7 } — saved with source "robot" */
+  @Post()
+  async create(@CurrentDevice() device: AuthDevice, @Body() dto: CreateMoodDto) {
+    const m = await this.moods.create(this.owner(device), dto.score, 'robot');
+    return { id: m.id, score: m.score, label: m.label };
+  }
+
+  /** GET /robot/moods/today — today's score only (notes stay on the phone) */
+  @Get('today')
+  async today(@CurrentDevice() device: AuthDevice) {
+    const { today } = await this.moods.list(this.owner(device), 1);
+    return { today: today ? { score: today.score, label: today.label } : null };
   }
 }
