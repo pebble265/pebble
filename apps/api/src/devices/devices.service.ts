@@ -292,6 +292,8 @@ export class DevicesService {
       },
     });
     if (count === 0) throw new ConflictException('Robot was just paired by someone else');
+    // Tell the robot right away so its screen leaves the pairing code without waiting for a poll.
+    this.realtime.toDevice(device.id, 'robot:paired', { at: now.toISOString() });
 
     // First robot: the setup screens are done.
     await this.prisma.users.updateMany({
@@ -317,6 +319,8 @@ export class DevicesService {
       },
     });
     if (count === 0) throw new NotFoundException('Robot not found');
+    // The robot shows a fresh pairing code at once instead of after its next poll.
+    this.realtime.toDevice(deviceId, 'robot:unpaired', { at: now.toISOString() });
 
     await this.prisma.alerts.updateMany({
       where: { device_id: deviceId, user_id: userId, resolved_at: null },

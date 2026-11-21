@@ -16,6 +16,8 @@ export const SETUP_BG = {
   hello: require('../../assets/images/setup/bg-hello.jpg'),
   finding: require('../../assets/images/setup/bg-finding.jpg'),
   found: require('../../assets/images/setup/bg-found.jpg'),
+  /** robot with an empty screen, no text: the "enter the code" step */
+  code: require('../../assets/images/setup/bg-code.jpg'),
 } as const;
 
 export const AVATAR = require('../../assets/images/setup/avatar.png');

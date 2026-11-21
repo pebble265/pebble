@@ -88,8 +88,7 @@ function RootNavigator() {
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="connect" options={{ animation: 'fade' }} />
-        <Stack.Screen name="connect-finding" options={{ animation: 'fade' }} />
-        <Stack.Screen name="connect-found" options={{ animation: 'fade' }} />
+        <Stack.Screen name="connect-code" options={{ animation: 'fade' }} />
       </Stack.Protected>
 
       {/* explicit targets, so a guarded route never falls back to the first route by name */}

@@ -13,7 +13,7 @@ export default function ConnectHello() {
         {`Hello, ${user?.displayName ?? ''}`}
       </GradientText>
       {/* the black "Connect →" button is part of the background */}
-      <HitArea left={35} top={690} width={240} height={53} label="Connect" onPress={() => router.push('/connect-finding')} />
+      <HitArea left={35} top={690} width={240} height={53} label="Connect" onPress={() => router.push('/connect-code')} />
     </DarkScreen>
   );
 }

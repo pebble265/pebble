@@ -24,6 +24,8 @@ import { PrismaService } from '../prisma/prisma.service';
  *                    { action: "wake" | "forward" | "backward" | "left" | "right" | "stop" | "wave" | "box", at: ISO time }
  *                    forward/backward/left/right = keep moving until "stop" (sent when the button is released)
  *                    wave = wave the arm, box = open/close the pill box
+ *   "robot:paired"   to a robot, right after someone typed its code in the app
+ *   "robot:unpaired" to a robot, right after its owner removed it (show a new code)
  */
 @WebSocketGateway({ namespace: '/realtime', cors: { origin: true } })
 export class RealtimeGateway implements OnGatewayConnection {

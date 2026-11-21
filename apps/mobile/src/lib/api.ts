@@ -125,6 +125,8 @@ const THAI: Record<string, string> = {
   'Invalid email or password': 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
   'Email is already registered': 'อีเมลนี้ถูกใช้สมัครแล้ว',
   'Too early to take this dose': 'ยังไม่ถึงเวลากินยารอบนี้',
+  'Invalid or expired pairing code': 'รหัสไม่ถูกต้องหรือหมดอายุแล้ว ลองดูรหัสบนจอหุ่นอีกครั้ง',
+  'Robot was just paired by someone else': 'หุ่นตัวนี้เพิ่งถูกจับคู่กับบัญชีอื่น',
   'Dose already taken': 'บันทึกว่ากินยารอบนี้แล้ว',
   'Please complete onboarding first': 'กรุณายืนยันการยินยอมก่อนใช้งาน',
   'Conversation not found or already ended': 'บทสนทนานี้จบไปแล้ว เริ่มคุยใหม่ได้เลย',
