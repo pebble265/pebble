@@ -26,6 +26,7 @@ import { PrismaService } from '../prisma/prisma.service';
  *                    wave = wave the arm, box = open/close the pill box
  *   "robot:paired"   to a robot, right after someone typed its code in the app
  *   "robot:unpaired" to a robot, right after its owner removed it (show a new code)
+ *   "mood:checkin"   to the user's robots after a mood check-in in the app: { score 1-7, label, at }
  */
 @WebSocketGateway({ namespace: '/realtime', cors: { origin: true } })
 export class RealtimeGateway implements OnGatewayConnection {

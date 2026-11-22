@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { addDays, localDateOf, zonedToUtc } from '../common/time';
 import { CryptoService } from '../crypto/crypto.service';
+import { RealtimeGateway } from '../notifications/realtime.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Thai labels for the 7-step scale, shared with the app. */
@@ -14,6 +15,7 @@ export class MoodsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   async create(userId: string, score: number, source: 'app' | 'robot' = 'app', note?: string) {
@@ -27,7 +29,19 @@ export class MoodsService {
     const row = recent
       ? await this.prisma.mood_checkins.update({ where: { id: recent.id }, data: { score, source, ...noteData } })
       : await this.prisma.mood_checkins.create({ data: { user_id: userId, score, source, ...noteData } });
+    if (source === 'app') await this.tellRobots(userId, score);
     return this.toResponse(row);
+  }
+
+  /** Check-in from the phone app -> the user's robots show that mood on their face right away. */
+  private async tellRobots(userId: string, score: number) {
+    try {
+      const robots = await this.prisma.devices.findMany({ where: { owner_user_id: userId }, select: { id: true } });
+      const payload = { score, label: MOOD_LABELS[score], at: new Date().toISOString() };
+      for (const r of robots) this.realtime.toDevice(r.id, 'mood:checkin', payload);
+    } catch {
+      // the robot face is a nice-to-have: never fail the check-in because of it
+    }
   }
 
   /** Add / change / clear ("") the note of one of my check-ins. */
