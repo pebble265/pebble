@@ -40,10 +40,23 @@ export class ChatController {
     return this.chat.end(user.id, id);
   }
 
-  /** GET /chat/conversations — past conversations (summaries only) */
+  /** GET /chat/conversations — past conversations (title, summary, mood) */
   @Get('conversations')
   history(@CurrentUser() user: AuthUser) {
     return this.chat.history(user.id);
+  }
+
+  /** GET /chat/conversations/:id/messages — the full chat, oldest first */
+  @Get('conversations/:id/messages')
+  messages(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.chat.messages(user.id, id);
+  }
+
+  /** DELETE /chat/conversations — clear the whole chat history */
+  @Delete('conversations')
+  @HttpCode(200)
+  removeAll(@CurrentUser() user: AuthUser) {
+    return this.chat.deleteAllConversations(user.id);
   }
 
   /** DELETE /chat/conversations/:id */

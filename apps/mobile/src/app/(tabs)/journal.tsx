@@ -1,6 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { Tap as Pressable, Stagger } from '@/components/motion';
 import { Text, TextInput } from '../../components/text';
 import { useS } from '../../components/figma';
 import { TAB_BAR_SPACE } from '../../components/tab-bar';
@@ -176,6 +177,7 @@ export default function Journal() {
             }}
           />
         }>
+        <Stagger>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: s(45), paddingRight: s(37) }}>
           <View style={{ flex: 1 }}>
@@ -354,6 +356,7 @@ export default function Journal() {
             </Pressable>
           )}
         </View>
+        </Stagger>
       </ScrollView>
 
       {/* edit a check-in's note */}

@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, View } from 'react-native';
+import { ActivityIndicator, Image, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text, TextInput } from '../../../components/text';
 import { useS } from '../../../components/figma';
 import { confirm } from '../../../components/ui';

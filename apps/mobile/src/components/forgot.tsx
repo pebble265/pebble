@@ -1,5 +1,6 @@
 import { type PropsWithChildren, type ReactNode } from 'react';
-import { ActivityIndicator, Image, type ImageSourcePropType, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, type ImageSourcePropType, ScrollView, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from './text';
 import { At, FigmaFrame, FText, PAGE_BG, useS } from './figma';
 import { colors } from '../theme';

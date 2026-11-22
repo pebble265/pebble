@@ -203,3 +203,26 @@ export type MedicalData = {
   /** the 1323 / 1669 hotlines come first and can't be removed */
   contacts: { id: string; label: string; phone: string; hotline: boolean }[];
 };
+
+/** GET /chat/conversations */
+export interface ChatConversation {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  messages: number;
+  fromRobot: boolean;
+  /** first thing the user said */
+  preview: string | null;
+  summary: string | null;
+  mood: number | null;
+}
+
+/** GET /chat/conversations/:id/messages */
+export interface ChatLog {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  fromRobot: boolean;
+  open: boolean;
+  messages: { id: string; role: 'user' | 'assistant'; text: string; at: string }[];
+}

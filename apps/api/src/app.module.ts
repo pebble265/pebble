@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AiModule } from './ai/ai.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { AuditModule } from './audit/audit.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -43,6 +44,7 @@ import { LegalModule } from './legal/legal.module';
     CaretakersModule,
     AlertsModule,
     ChatModule,
+    AuditModule,
     PrivacyModule,
   ],
   controllers: [AppController],

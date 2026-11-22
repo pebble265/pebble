@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Keyboard, Platform, Pressable, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Keyboard, Platform, useWindowDimensions, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { At, useS } from '../components/figma';
 import { DarkScreen, GradientText, SETUP_BG } from '../components/setup';
 import { Text, TextInput } from '../components/text';

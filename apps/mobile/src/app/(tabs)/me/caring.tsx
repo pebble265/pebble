@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { type ReactNode, useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from '../../../components/text';
 import { useS } from '../../../components/figma';
 import { Initial, Section } from '../../../components/care-ui';

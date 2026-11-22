@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Alert, Text } from './text';
 import { colors, shadow, space } from '../theme';
 

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
-import { Animated, Pressable, View } from 'react-native';
+import { Animated, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from './text';
 
 /** Common medicines with a one-line note (English, as in the Figma "Med Selected" screen). */

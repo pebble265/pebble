@@ -53,10 +53,12 @@ export const ROBOT_REPORTED_STATUS = ['online', 'charging', 'error'] as const;
 
 /** Robot -> backend every minute or so. */
 export class HeartbeatDto {
+  /** Left out while the robot can't read its battery (ESP32 not linked yet). */
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(100)
-  batteryLevel!: number;
+  batteryLevel?: number;
 
   @IsOptional()
   @IsIn(ROBOT_REPORTED_STATUS)

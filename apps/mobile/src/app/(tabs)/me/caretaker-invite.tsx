@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Share, View } from 'react-native';
+import { ActivityIndicator, Share, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text, TextInput } from '../../../components/text';
 import { useS } from '../../../components/figma';
 import { PermToggle, Section } from '../../../components/care-ui';

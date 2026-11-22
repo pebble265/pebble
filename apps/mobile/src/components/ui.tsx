@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react';
-import { ActivityIndicator, Platform, Pressable, type TextInputProps, View, type ViewStyle, StyleSheet } from 'react-native';
+import { ActivityIndicator, Platform, type TextInputProps, View, type ViewStyle, StyleSheet } from 'react-native';
+import { Tap as Pressable, Animated, Breathe, useBlink } from '@/components/motion';
 import { t } from '../lib/i18n';
 import { Alert, Text, TextInput } from './text';
 import { colors, gradients, periodOf, PERIODS, radius, shadow, space, themedStyles, type } from '../theme';
@@ -161,7 +162,9 @@ export function Logo({ size = 20, tm }: { size?: number; tm?: boolean }) {
 /** Pebble's face: a glossy blue blob with sleepy eyes (the robot / AI avatar). */
 export function RobotFace({ size = 56, awake = false }: { size?: number; awake?: boolean }) {
   const eyeW = size * 0.16;
+  const blink = useBlink(awake);
   return (
+    <Breathe to={1.04} period={awake ? 2600 : 4200}>
     <View
       style={{
         width: size,
@@ -176,11 +179,11 @@ export function RobotFace({ size = 56, awake = false }: { size?: number; awake?:
         boxShadow: '0px 6px 16px rgba(61, 139, 247, 0.35)',
       }}>
       {[0, 1].map((i) => (
-        <View
+        <Animated.View
           key={i}
           style={
             awake
-              ? { width: eyeW * 0.7, height: eyeW * 1.1, borderRadius: eyeW, backgroundColor: colors.surface }
+              ? [{ width: eyeW * 0.7, height: eyeW * 1.1, borderRadius: eyeW, backgroundColor: colors.surface }, blink]
               : {
                   width: eyeW,
                   height: eyeW * 0.5,
@@ -194,6 +197,7 @@ export function RobotFace({ size = 56, awake = false }: { size?: number; awake?:
         />
       ))}
     </View>
+    </Breathe>
   );
 }
 

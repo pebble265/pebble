@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { createContext, type PropsWithChildren, type ReactNode, type Ref, useContext } from 'react';
-import { Image, Pressable, type StyleProp, type TextInputInstance, type TextInputProps, type TextStyle, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { Image, type StyleProp, type TextInputInstance, type TextInputProps, type TextStyle, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text, TextInput } from './text';
 import { colors } from '../theme';
 

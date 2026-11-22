@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { isConsentActive } from '../privacy/consent';
 import {
   isCrisis,
+  matchesCrisisPhrase,
   SAFE_CRISIS_REPLY,
   SAFE_FALLBACK_REPLY,
 } from './crisis';
@@ -23,6 +24,8 @@ import { companionSystemPrompt, SUMMARY_PROMPT } from './prompts';
 export const IDLE_MINUTES = 30;
 /** Turns kept in memory and sent to the AI (user + assistant). */
 const MAX_TURNS = 20;
+/** How many recent turns go to the AI each time (fewer = cheaper). */
+const AI_HISTORY = 8;
 /** Don't raise a second crisis alert for the same conversation within this window. */
 const CRISIS_ALERT_COOLDOWN_MIN = 30;
 
@@ -35,9 +38,10 @@ interface Session {
 }
 
 /**
- * Transcripts are NOT stored in the database. The live turns of an open
- * conversation are kept in server memory only; when it ends, an encrypted
- * summary + mood score is saved and the turns are dropped.
+ * Every message is saved encrypted in chat_messages so the user can read
+ * their history back (owner only; caretakers never see transcripts). The live
+ * turns of an open conversation are also kept in memory for the AI; when it
+ * ends, an encrypted summary + mood score is saved as long-term memory.
  */
 @Injectable()
 export class ChatService implements OnModuleDestroy {
@@ -75,7 +79,7 @@ export class ChatService implements OnModuleDestroy {
     let aiOk = true;
     try {
       const system = companionSystemPrompt(await this.promptContext(userId, session.crisis));
-      reply = await this.ai.chat(system, session.turns.slice(-MAX_TURNS));
+      reply = await this.ai.chat(system, session.turns.slice(-AI_HISTORY), { maxTokens: 350 });
     } catch (e) {
       aiOk = false;
       this.logger.error(`AI chat failed: ${(e as Error).message}`);
@@ -83,7 +87,8 @@ export class ChatService implements OnModuleDestroy {
     }
 
     // ---- Check the AI's own reply before it reaches the user ----
-    if (aiOk) {
+    // (only when the reply or the conversation touches self-harm: saves a paid call on ordinary chats)
+    if (aiOk && (session.crisis || matchesCrisisPhrase(reply))) {
       const outMod = await this.ai.moderate(reply);
       if (outMod?.selfHarmInstructions) {
         this.logger.warn(`Blocked an unsafe AI reply in conversation ${id}`);
@@ -92,6 +97,7 @@ export class ChatService implements OnModuleDestroy {
     }
 
     session.turns.push({ role: 'assistant', content: reply });
+    await this.saveMessages(id, userId, text, reply);
     if (session.turns.length > MAX_TURNS) {
       session.turns.splice(0, session.turns.length - MAX_TURNS);
     }
@@ -172,7 +178,7 @@ export class ChatService implements OnModuleDestroy {
         const raw = await this.ai.chat(
           SUMMARY_PROMPT,
           [{ role: 'user', content: transcript }],
-          { json: true, maxTokens: 400 },
+          { json: true, maxTokens: 250 },
         );
         const parsed = JSON.parse(raw);
         if (typeof parsed.summary === 'string') summary = parsed.summary.slice(0, 1000);
@@ -227,10 +233,14 @@ export class ChatService implements OnModuleDestroy {
   // =====================================================================
   async history(userId: string) {
     const rows = await this.prisma.conversations.findMany({
-      where: { user_id: userId, deleted_at: null, ended_at: { not: null } },
-      include: { conversation_summaries: true },
+      where: { user_id: userId, deleted_at: null, turn_count: { gt: 0 } },
+      include: {
+        conversation_summaries: true,
+        // first thing the user said, as the title
+        chat_messages: { where: { role: 'user' }, orderBy: { created_at: 'asc' }, take: 1 },
+      },
       orderBy: { started_at: 'desc' },
-      take: 30,
+      take: 100,
     });
     return rows.map((c) => ({
       id: c.id,
@@ -238,6 +248,7 @@ export class ChatService implements OnModuleDestroy {
       endedAt: c.ended_at,
       messages: c.turn_count,
       fromRobot: c.device_id !== null,
+      preview: c.chat_messages[0] ? this.safeDecrypt(c.chat_messages[0].content_enc)?.slice(0, 120) ?? null : null,
       summary: c.conversation_summaries
         ? this.crypto.decrypt(c.conversation_summaries.summary_enc)
         : null,
@@ -255,6 +266,90 @@ export class ChatService implements OnModuleDestroy {
     await this.prisma.conversation_summaries.deleteMany({
       where: { conversation_id: conversationId },
     });
+    await this.prisma.chat_messages.deleteMany({ where: { conversation_id: conversationId } });
+  }
+
+  /** One conversation, message by message (owner only). */
+  async messages(userId: string, conversationId: string) {
+    const convo = await this.prisma.conversations.findFirst({
+      where: { id: conversationId, user_id: userId, deleted_at: null },
+      select: { id: true, started_at: true, ended_at: true, device_id: true },
+    });
+    if (!convo) throw new NotFoundException('Conversation not found');
+    const rows = await this.prisma.chat_messages.findMany({
+      where: { conversation_id: conversationId },
+      orderBy: { created_at: 'asc' },
+    });
+    return {
+      id: convo.id,
+      startedAt: convo.started_at,
+      endedAt: convo.ended_at,
+      fromRobot: convo.device_id !== null,
+      open: !convo.ended_at && this.sessions.has(convo.id),
+      messages: rows.map((m) => ({
+        id: m.id,
+        role: m.role as 'user' | 'assistant',
+        text: this.safeDecrypt(m.content_enc) ?? '(อ่านข้อความนี้ไม่ได้)',
+        at: m.created_at,
+      })),
+    };
+  }
+
+  /** Delete the whole chat history (messages, summaries, conversations). Memories stay. */
+  async deleteAllConversations(userId: string) {
+    const rows = await this.prisma.conversations.findMany({
+      where: { user_id: userId, deleted_at: null },
+      select: { id: true },
+    });
+    const ids = rows.map((r) => r.id);
+    for (const id of ids) this.sessions.delete(id);
+    await this.prisma.chat_messages.deleteMany({ where: { user_id: userId } });
+    await this.prisma.conversation_summaries.deleteMany({ where: { conversation_id: { in: ids } } });
+    await this.prisma.conversations.updateMany({
+      where: { id: { in: ids } },
+      data: { deleted_at: new Date() },
+    });
+    return { deleted: ids.length };
+  }
+
+  private async saveMessages(conversationId: string, userId: string, text: string, reply: string) {
+    try {
+      const now = Date.now();
+      await this.prisma.chat_messages.createMany({
+        data: [
+          { conversation_id: conversationId, user_id: userId, role: 'user', content_enc: this.crypto.encrypt(text), created_at: new Date(now) },
+          { conversation_id: conversationId, user_id: userId, role: 'assistant', content_enc: this.crypto.encrypt(reply), created_at: new Date(now + 1) },
+        ],
+      });
+    } catch (e) {
+      // History is a convenience: never fail the reply because of it.
+      this.logger.warn(`Could not save chat history for ${conversationId}: ${(e as Error).message}`);
+    }
+  }
+
+  /** Last turns of a conversation from the database (after a server restart). */
+  private async loadTurns(conversationId: string): Promise<ChatTurn[]> {
+    try {
+      const rows = await this.prisma.chat_messages.findMany({
+        where: { conversation_id: conversationId },
+        orderBy: { created_at: 'desc' },
+        take: MAX_TURNS,
+      });
+      return rows
+        .reverse()
+        .map((m) => ({ role: m.role as ChatTurn['role'], content: this.safeDecrypt(m.content_enc) ?? '' }))
+        .filter((m) => m.content);
+    } catch {
+      return [];
+    }
+  }
+
+  private safeDecrypt(data: Uint8Array): string | null {
+    try {
+      return this.crypto.decrypt(data);
+    } catch {
+      return null;
+    }
   }
 
   async memories(userId: string) {
@@ -297,7 +392,7 @@ export class ChatService implements OnModuleDestroy {
       const session: Session = {
         userId,
         deviceId,
-        turns: [],
+        turns: await this.loadTurns(convo.id),
         lastActive: Date.now(),
         crisis: false,
       };

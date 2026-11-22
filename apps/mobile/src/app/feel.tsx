@@ -1,7 +1,8 @@
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Keyboard, Platform, Pressable, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Keyboard, Platform, useWindowDimensions, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text, TextInput } from '../components/text';
 import { GradientText } from '../components/setup';
 import { api, errorText } from '../lib/api';

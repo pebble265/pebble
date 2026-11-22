@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, type ScrollViewInstance, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, type ScrollViewInstance, useWindowDimensions, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from '../components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { say } from '../lib/about';

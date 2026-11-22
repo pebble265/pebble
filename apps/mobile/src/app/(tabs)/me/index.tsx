@@ -2,7 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
 import { type ReactNode, useState } from 'react';
-import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { ScrollView, useWindowDimensions, View } from 'react-native';
+import { Tap as Pressable, Stagger } from '@/components/motion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../../../components/text';
 import { useS } from '../../../components/figma';
@@ -74,6 +75,7 @@ export default function Me() {
     <View style={{ flex: 1, backgroundColor: colors.page, backgroundImage: gradients.user }}>
       <ScrollView alwaysBounceVertical={false} scrollEnabled={!fits} contentContainerStyle={{ paddingTop: top, paddingBottom: bottomGap }}>
         <View onLayout={(e) => setContentH(e.nativeEvent.layout.height)}>
+        <Stagger>
         {/* name + avatar */}
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: s(37), paddingRight: s(30) }}>
           <View style={{ flex: 1 }}>
@@ -97,6 +99,7 @@ export default function Me() {
           <Row icon={mc('medical-bag')} label="ข้อมูลทางการแพทย์" onPress={() => router.push('/me/medical')} />
           <Row icon={mc('pill')} label="ข้อมูลยา" onPress={() => router.push('/meds-manage')} />
           <Row icon={mc('robot')} label="pebble ของคุณ" onPress={() => router.navigate('/robot')} />
+          <Row icon={ic('time-outline')} label="ประวัติแชตกับ Pebbi" onPress={() => router.push('/chat-history')} />
           <Row icon={ic('people-outline')} label="ผู้ดูแล" onPress={() => router.push('/me/caretakers')} />
           <Row icon={ic('chatbubble-ellipses-outline')} label="ติดต่อทีม pebble" onPress={contactTeam} last />
         </Section>
@@ -109,6 +112,7 @@ export default function Me() {
           style={{ alignSelf: 'center', marginTop: s(22), paddingHorizontal: s(16), paddingVertical: s(8) }}>
           <Text style={{ fontSize: s(13), fontWeight: '600', color: '#E5484D' }}>ออกจากระบบ</Text>
         </Pressable>
+        </Stagger>
         </View>
       </ScrollView>
     </View>

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { Pressable } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { FText } from '../components/figma';
 import { Avatar, LightScreen } from '../components/setup';
 import { useTheme } from '../lib/theme-mode';

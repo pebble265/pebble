@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Alert, Text } from './text';
 import {
   connectSpotify,

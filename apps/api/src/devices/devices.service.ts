@@ -139,7 +139,7 @@ export class DevicesService {
       where: { id: device.id },
       data: {
         status,
-        battery_level: dto.batteryLevel,
+        ...(dto.batteryLevel != null && { battery_level: dto.batteryLevel }),
         last_seen_at: now,
         ...(dto.firmwareVersion && { firmware_version: dto.firmwareVersion }),
       },
@@ -152,7 +152,9 @@ export class DevicesService {
     await this.resolveOpenAlerts(device.id, 'device_offline', now);
 
     const charging = status === 'charging';
-    if (dto.batteryLevel <= LOW_BATTERY_PERCENT && !charging) {
+    if (dto.batteryLevel == null) {
+      // battery unknown right now: leave the alerts as they are
+    } else if (dto.batteryLevel <= LOW_BATTERY_PERCENT && !charging) {
       const open = await this.prisma.alerts.findFirst({
         where: { device_id: device.id, type: 'low_battery', resolved_at: null },
         select: { id: true },
@@ -167,7 +169,7 @@ export class DevicesService {
           },
         });
       }
-    } else if (charging || dto.batteryLevel > LOW_BATTERY_PERCENT) {
+    } else if (charging || (dto.batteryLevel ?? 0) > LOW_BATTERY_PERCENT) {
       await this.resolveOpenAlerts(device.id, 'low_battery', now);
     }
 

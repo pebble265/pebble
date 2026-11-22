@@ -101,6 +101,8 @@ function RootNavigator() {
           options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
         />
         <Stack.Screen name="brief" />
+        <Stack.Screen name="chat-history" />
+        <Stack.Screen name="chat-log" />
         <Stack.Screen
           name="feel"
           options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}

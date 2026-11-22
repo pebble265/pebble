@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text, TextInput } from '../../../components/text';
 import { useS } from '../../../components/figma';
 import { Avatar, daysWithPebble, SubPage } from '../../../components/user-ui';

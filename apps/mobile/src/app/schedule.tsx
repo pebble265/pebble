@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, ScrollView, View, StyleSheet } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from '../components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { confirm, ErrorText, PillIcon, TimeCapsule } from '../components/ui';

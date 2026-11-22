@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, ScrollView, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from './text';
 import { DAY_SHORT } from '../lib/format';
 import { colors, gradients, type Period, PERIODS } from '../theme';

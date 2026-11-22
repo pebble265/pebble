@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from './text';
 import type { Dose, Medication, TodayDoses } from '../lib/types';
 import { colors, gradients, periodOf, PERIODS } from '../theme';

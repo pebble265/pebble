@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, type TextInputInstance } from 'react-native';
+import { type TextInputInstance } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text, TextInput } from '../components/text';
 import { FButton, FORGOT_BG, ForgotScreen, OtpBoxes, PwIcon } from '../components/forgot';
 import { At, FText, useS } from '../components/figma';

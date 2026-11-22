@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { AiProvider, ChatTurn, ModerationResult } from './ai.provider';
+import { AiBudget } from './budget';
 
 export interface AnthropicConfig {
   apiKey: string;
@@ -9,6 +10,8 @@ export interface AnthropicConfig {
   moderationModel: string;
   baseUrl: string;
   timeoutMs: number;
+  /** spending guard; refuses calls once the budget is used up */
+  budget?: AiBudget;
 }
 
 const MODERATION_SYSTEM = `You are a safety classifier for a mental-health companion app (users write in Thai or English).
@@ -34,7 +37,7 @@ export class AnthropicProvider implements AiProvider {
       this.cfg.model,
       opts.json ? `${system}\n\nRespond with ONLY a valid JSON object, no other text.` : system,
       fixTurns(turns),
-      opts.maxTokens ?? 800,
+      opts.maxTokens ?? 350,
     );
     return opts.json ? stripFences(text) : text;
   }
@@ -45,7 +48,7 @@ export class AnthropicProvider implements AiProvider {
         this.cfg.moderationModel,
         MODERATION_SYSTEM,
         [{ role: 'user', content: `<text>\n${text}\n</text>` }],
-        100,
+        60,
       );
       const j = JSON.parse(stripFences(raw));
       return {
@@ -60,6 +63,7 @@ export class AnthropicProvider implements AiProvider {
   }
 
   private async message(model: string, system: string, messages: ChatTurn[], maxTokens: number): Promise<string> {
+    this.cfg.budget?.check();
     const res = await fetch(`${this.cfg.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
@@ -76,6 +80,7 @@ export class AnthropicProvider implements AiProvider {
       throw new Error(`Anthropic ${res.status}: ${detail.slice(0, 300)}`);
     }
     const data: any = await res.json();
+    this.cfg.budget?.record(model, data?.usage);
     const text = (data?.content ?? [])
       .filter((b: any) => b?.type === 'text')
       .map((b: any) => b.text)

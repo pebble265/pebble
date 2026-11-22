@@ -3,7 +3,9 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { BlurView } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Tap as Pressable, Animated, Float } from '@/components/motion';
+import { FadeInDown } from 'react-native-reanimated';
 import { Text, TextInput } from '../../components/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFigmaScale, useFrameHeight, useS } from '../../components/figma';
@@ -87,6 +89,9 @@ export default function Robot() {
   useFocusEffect(
     useCallback(() => {
       load();
+      // keep online state and battery fresh while this tab is open
+      const t = setInterval(load, 10000);
+      return () => clearInterval(t);
     }, [load]),
   );
   useEffect(() => () => void (wakeTimer.current && clearTimeout(wakeTimer.current)), []);
@@ -172,11 +177,13 @@ export default function Robot() {
           />
         }>
         {/* the robot (bleeds off the right edge, like the design) */}
-        <Image
-          source={require('../../../assets/images/robot-photo.png')}
-          style={{ position: 'absolute', left: s(90), top: s(164), width: s(532), height: s(532), opacity: device ? 1 : 0.35 }}
-          accessibilityIgnoresInvertColors
-        />
+        <Float amount={s(8)} period={4200} style={{ position: 'absolute', left: s(90), top: s(164), width: s(532), height: s(532) }}>
+          <Image
+            source={require('../../../assets/images/robot-photo.png')}
+            style={{ width: '100%', height: '100%', opacity: device ? 1 : 0.35 }}
+            accessibilityIgnoresInvertColors
+          />
+        </Float>
 
         {/* header */}
         <At left={45} top={102} w={260} h={80}>
@@ -359,7 +366,13 @@ export default function Robot() {
 /** Box placed in the design's 402-wide coordinates. */
 function At({ left, top, w, h, children, style }: { left: number; top: number; w: number; h: number; children: ReactNode; style?: object }) {
   const s = useS();
-  return <View style={[{ position: 'absolute', left: s(left), top: s(top), width: s(w), height: s(h) }, style]}>{children}</View>;
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(Math.max(0, top - 90) * 0.9).duration(450).springify().damping(17)}
+      style={[{ position: 'absolute', left: s(left), top: s(top), width: s(w), height: s(h) }, style]}>
+      {children}
+    </Animated.View>
+  );
 }
 
 function batteryIcon(level: number | null): 'battery' | 'battery-outline' | 'battery-20' | 'battery-50' | 'battery-80' {

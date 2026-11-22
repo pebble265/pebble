@@ -2,7 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, View, StyleSheet } from 'react-native';
+import { Image, RefreshControl, ScrollView, View, StyleSheet } from 'react-native';
+import { Tap as Pressable, Stagger } from '@/components/motion';
 import { Text } from '../../components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTabBarHeight } from '../../components/tab-bar';
@@ -170,6 +171,11 @@ export default function Home() {
       load();
       // Steps from Apple Health / Health Connect; permission is asked on the brief screen.
       readHealthToday(false).then((h) => setSteps(h.steps)).catch(() => {});
+      // robot battery / online dot stay current while Home is open
+      const t = setInterval(() => {
+        api<Device[]>('/devices').then((d) => setDevice(d[0] ?? null)).catch(() => {});
+      }, 15000);
+      return () => clearInterval(t);
     }, [load]),
   );
 
@@ -223,6 +229,7 @@ export default function Home() {
           />
         }>
         <View onLayout={(e) => setContentH(e.nativeEvent.layout.height)} style={{ gap: compact ? 10 : space.lg }}>
+        <Stagger>
         {/* Greeting */}
         <View style={[styles.header, compact && { marginTop: 0 }]}>
           <View style={{ flex: 1 }}>
@@ -316,6 +323,7 @@ export default function Home() {
               return (
                 <Pressable
                   key={m.score}
+                  scaleTo={0.8}
                   onPress={() => pickMood(m.score)}
                   disabled={moodBusy}
                   accessibilityRole="button"
@@ -394,6 +402,7 @@ export default function Home() {
             </View>
           </Pressable>
         </View>
+        </Stagger>
         </View>
       </ScrollView>
     </SafeAreaView>

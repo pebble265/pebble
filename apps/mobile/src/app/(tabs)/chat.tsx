@@ -1,7 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, type ScrollViewInstance, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, ScrollView, type ScrollViewInstance, View, StyleSheet } from 'react-native';
+import { Tap as Pressable, Animated, TypingDots, FadeIn, FadeOut, layout } from '@/components/motion';
+import { FadeInDown } from 'react-native-reanimated';
 import { Text, TextInput } from '../../components/text';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useS } from '../../components/figma';
@@ -142,6 +144,14 @@ export default function Chat() {
               <Text style={{ fontSize: s(12), fontWeight: '600' }}>เรื่องใหม่</Text>
             </Pressable>
           )}
+          <Pressable
+            onPress={() => router.push('/chat-history')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="ประวัติแชต"
+            style={[styles.newBtn, { paddingHorizontal: 8 }]}>
+            <Ionicons name="time-outline" size={s(17)} color={colors.ink} />
+          </Pressable>
           <UserPhoto px={s(42)} />
         </View>
 
@@ -175,25 +185,25 @@ export default function Chat() {
 
           {messages.map((m) =>
             m.from === 'me' ? (
-              <View key={m.id} style={[styles.bubble, styles.mine]}>
+              <Animated.View key={m.id} entering={FadeInDown.springify().damping(16)} layout={layout} style={[styles.bubble, styles.mine]}>
                 <Text style={{ fontSize: s(14), color: '#FFF' }}>{m.text}</Text>
-              </View>
+              </Animated.View>
             ) : (
-              <View key={m.id} style={styles.theirsRow}>
+              <Animated.View key={m.id} entering={FadeInDown.delay(60).springify().damping(16)} layout={layout} style={styles.theirsRow}>
                 <Image source={require('../../../assets/images/setup/avatar.png')} style={{ width: s(26), height: s(26), borderRadius: 999 }} />
                 <View style={[styles.bubble, styles.theirs]}>
                   <Text style={{ fontSize: s(14), color: colors.ink }}>{m.text}</Text>
                 </View>
-              </View>
+              </Animated.View>
             ),
           )}
           {sending && (
-            <View style={styles.theirsRow}>
+            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(120)} style={styles.theirsRow}>
               <Image source={require('../../../assets/images/setup/avatar.png')} style={{ width: s(26), height: s(26), borderRadius: 999 }} />
               <View style={[styles.bubble, styles.theirs]}>
-                <ActivityIndicator color={colors.muted} size="small" />
+                <TypingDots color={colors.muted} />
               </View>
-            </View>
+            </Animated.View>
           )}
           <ErrorText>{error}</ErrorText>
         </ScrollView>

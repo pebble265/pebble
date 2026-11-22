@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from '../../../components/text';
 import { useS } from '../../../components/figma';
 import { InfoRow, SubPage } from '../../../components/user-ui';

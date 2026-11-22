@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Linking, Pressable, View } from 'react-native';
+import { Linking, View } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from '../../../components/text';
 import { useS } from '../../../components/figma';
 import { Section } from '../../../components/care-ui';

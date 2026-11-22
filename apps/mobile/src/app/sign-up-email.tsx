@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, type TextInputInstance } from 'react-native';
+import { ActivityIndicator, ScrollView, type TextInputInstance } from 'react-native';
+import { Tap as Pressable } from '@/components/motion';
 import { Text } from '../components/text';
 import { GoogleButton } from '../components/auth-social';
 import { At, Brand, Dot, FField, FigmaFrame, FText, LearnMore, PAGE_BG, RememberMe, useS } from '../components/figma';

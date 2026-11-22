@@ -2,7 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Image, RefreshControl, ScrollView, View } from 'react-native';
+import { Tap as Pressable, Stagger } from '@/components/motion';
 import { Text } from '../../components/text';
 import { useS } from '../../components/figma';
 import { buildSchedule, ComingBar, type MedItem, NextCard } from '../../components/med-cards';
@@ -64,6 +65,7 @@ export default function Meds() {
             }}
           />
         }>
+        <Stagger>
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: s(45), paddingRight: s(37) }}>
           <View style={{ flex: 1 }}>
@@ -132,6 +134,7 @@ export default function Meds() {
             <Text style={{ fontSize: s(14), fontWeight: '600', color: colors.primaryText }}>เพิ่มยา</Text>
           </Pressable>
         </View>
+        </Stagger>
       </ScrollView>
     </View>
   );
