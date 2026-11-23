@@ -2,3 +2,16 @@ node_modules/
 .env
 dist/
 *.tsbuildinfo
+
+# backups / scratch
+*.tgz
+apps/mobile/_to_delete/
+logs/
+
+# firmware (ESP32 + Raspberry Pi)
+firmware/raspberry-pi/config.toml
+firmware/esp32/include/secrets.h
+.venv/
+__pycache__/
+*.pyc
+.pio/

@@ -163,9 +163,14 @@ export function applyTheme(dark: boolean) {
   darkNow = dark;
   Object.assign(colors, dark ? darkColors : lightColors);
   Object.assign(gradients, dark ? darkGradients : lightGradients);
-  Object.assign(shadow, dark ? darkShadow : lightShadow);
+  // Swap in fresh objects instead of editing the old ones: in development, style objects
+  // that were handed to an animated view are frozen, and editing them throws.
   const t = makeType(dark ? darkColors : lightColors);
-  for (const k of Object.keys(t) as (keyof typeof t)[]) Object.assign(type[k], t[k]);
+  for (const k of Object.keys(t) as (keyof typeof t)[]) (type as Record<string, object>)[k] = { ...t[k] };
+  for (const k of Object.keys(shadow)) {
+    const next = (dark ? darkShadow : lightShadow) as Record<string, unknown>;
+    (shadow as Record<string, unknown>)[k] = typeof next[k] === 'object' && next[k] ? { ...(next[k] as object) } : next[k];
+  }
   return ++version;
 }
 export const themeVersion = () => version;

@@ -14,6 +14,7 @@ export const ACTIONS: Record<string, { action: string; target?: string }> = {
   'DELETE /users/me/avatar': { action: 'avatar_delete', target: 'user' },
   'POST /users/me/onboarding': { action: 'onboarding', target: 'user' },
   'POST /users/me/robot-setup': { action: 'robot_setup', target: 'user' },
+  'POST /users/me/app-setup': { action: 'app_setup_done', target: 'user' },
   'POST /users/me/password': { action: 'password_change', target: 'user' },
   'POST /users/me/terms/email': { action: 'terms_email', target: 'user' },
   // medicine
@@ -64,6 +65,7 @@ export const ACTIONS: Record<string, { action: string; target?: string }> = {
 /** Too frequent or not an action by a person. */
 export const SKIP = new Set([
   'POST /robot/heartbeat',
+  'POST /robot/test-report', // every 2 s while the hardware test screen is open
   'POST /robot/auth',
   'POST /robot/pairing-code',
   'POST /auth/refresh',

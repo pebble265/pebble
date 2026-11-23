@@ -176,10 +176,10 @@ export default function Robot() {
             }}
           />
         }>
-        {/* the robot (bleeds off the right edge, like the design) */}
-        <Float amount={s(8)} period={4200} style={{ position: 'absolute', left: s(90), top: s(164), width: s(532), height: s(532) }}>
+        {/* the robot (Figma "pebble(a) - Pebble": cut off by the right edge) */}
+        <Float amount={s(8)} period={4200} style={{ position: 'absolute', left: s(81), top: s(93), width: s(321), height: s(661) }}>
           <Image
-            source={require('../../../assets/images/robot-photo.png')}
+            source={require('../../../assets/images/robot-model.png')}
             style={{ width: '100%', height: '100%', opacity: device ? 1 : 0.35 }}
             accessibilityIgnoresInvertColors
           />
@@ -279,6 +279,12 @@ export default function Robot() {
                 <MaterialCommunityIcons name="remote" size={s(18)} color={colors.ink} />
                 <Text style={{ fontSize: s(13), fontWeight: '700' }}>ควบคุมหุ่น</Text>
               </Pressable>
+              {!isDemo && (
+                <Pressable onPress={() => router.push('/robot-test')} hitSlop={8} accessibilityRole="button" style={{ marginTop: s(10), flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
+                  <MaterialCommunityIcons name="tools" size={s(13)} color={colors.muted} />
+                  <Text style={{ fontSize: s(11), color: colors.muted, textDecorationLine: 'underline' }}>ทดสอบฮาร์ดแวร์ (servo / ล้อ)</Text>
+                </Pressable>
+              )}
             </View>
           </>
         ) : (

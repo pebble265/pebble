@@ -37,16 +37,23 @@ export class DevicesController {
     return this.devices.pair(user.id, dto.code, dto.serialNumber);
   }
 
-  /** POST /devices/:id/command  { action: "wake" | "forward" | "backward" | "left" | "right" | "stop" | "wave" | "box" } */
+  /** POST /devices/:id/command  { action: "wake" | "forward" | ... | "box" | "test", esp? } */
   @Post(':id/command')
   @HttpCode(200)
-  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Throttle({ default: { limit: 240, ttl: 60_000 } })
   command(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RobotCommandDto,
   ) {
-    return this.devices.command(user.id, id, dto.action);
+    return this.devices.command(user.id, id, dto.action, dto.esp);
+  }
+
+  /** GET /devices/:id/test-status — hardware test screen: is the robot online, is its ESP32 board linked */
+  @Get(':id/test-status')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  testStatus(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.devices.testStatus(user.id, id);
   }
 
   /** DELETE /devices/:id — unpair a robot */

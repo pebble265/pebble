@@ -1,5 +1,9 @@
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
   IsIn,
+  IsObject,
   IsInt,
   IsOptional,
   IsString,
@@ -27,13 +31,48 @@ export class PairDeviceDto {
  * wake: say hello + listen · forward/backward/left/right: move until "stop" (sent on release)
  * wave: wave the arm · box: open/close the pill box
  */
-export const ROBOT_ACTIONS = ['wake', 'forward', 'backward', 'left', 'right', 'stop', 'wave', 'box'] as const;
+export const ROBOT_ACTIONS = ['wake', 'forward', 'backward', 'left', 'right', 'stop', 'wave', 'box', 'test'] as const;
 export type RobotAction = (typeof ROBOT_ACTIONS)[number];
 
 /** App -> backend -> robot: a remote-control command. */
 export class RobotCommandDto {
   @IsIn(ROBOT_ACTIONS)
   action!: RobotAction;
+
+  /** action "test" only: one ESP32 command, e.g. {"cmd":"servo","ch":5,"angle":100} (the robot checks it) */
+  @IsOptional()
+  @IsObject()
+  esp?: Record<string, unknown>;
+}
+
+/** Robot -> backend while the app's hardware test screen is open: how the ESP32 link looks. */
+export class RobotTestReportDto {
+  @IsBoolean()
+  espLinked!: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  espFw?: string;
+
+  /** "uart" / "usb" / "" */
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  espPort?: string;
+
+  /** seconds since the last line from the ESP32 */
+  @IsOptional()
+  @IsInt()
+  espAgo?: number;
+
+  /** latest ESP32 event lines, newest last */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  @MaxLength(300, { each: true })
+  events?: string[];
 }
 
 /** Robot -> backend: log in with the credentials burned in at the factory. */

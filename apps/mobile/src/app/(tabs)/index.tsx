@@ -97,6 +97,15 @@ function RobotCard({ device, robotName, compact }: { device: Device | null; robo
 export default function Home() {
   useTheme();
   const { user } = useAuth();
+  // Home reached: the robot can leave its "Your Pebble(a) will be ready soon" page
+  const setupSent = useRef(false);
+  useEffect(() => {
+    if (!user || user.appSetupDoneAt || setupSent.current) return;
+    setupSent.current = true;
+    api('/users/me/app-setup', { method: 'POST' }).catch(() => {
+      setupSent.current = false;
+    });
+  }, [user]);
   const [today, setToday] = useState<TodayDoses | null>(null);
   const [history, setHistory] = useState<DoseHistory | null>(null);
   const [moods, setMoods] = useState<MoodList | null>(null);

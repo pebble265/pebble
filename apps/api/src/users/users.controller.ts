@@ -63,6 +63,13 @@ export class UsersController {
     return this.users.finishRobotSetup(user.id);
   }
 
+  /** POST /users/me/app-setup — first-run screens done (the robot leaves its "ready soon" page) */
+  @Post('app-setup')
+  @HttpCode(200)
+  finishAppSetup(@CurrentUser() user: AuthUser) {
+    return this.users.finishAppSetup(user.id);
+  }
+
   /** POST /users/me/password  { currentPassword, newPassword } — signs out other devices */
   @Post('password')
   @HttpCode(200)

@@ -7,6 +7,7 @@ import { DarkScreen, GradientText, SETUP_BG } from '../components/setup';
 import { Text, TextInput } from '../components/text';
 import { api, errorText } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { firstSetup } from '../lib/first-setup';
 import { useTheme } from '../lib/theme-mode';
 
 const LEN = 6;
@@ -62,7 +63,8 @@ function CodeForm() {
     try {
       await task();
       Keyboard.dismiss();
-      await reloadUser(); // robotSetupAt is set -> the app opens Home
+      firstSetup.start(); // next: pick medicines -> All Set -> Home
+      await reloadUser(); // robotSetupAt is set -> the app leaves the setup screens
     } catch (e) {
       setError(errorText(e));
       setCode('');
@@ -85,20 +87,12 @@ function CodeForm() {
     if (digits.length === LEN) connect(digits);
   }
 
-  const shown = code.padEnd(LEN, '•');
   const BOX = 44;
   const GAP = 8;
   const rowLeft = (402 - (BOX * LEN + GAP * (LEN - 1))) / 2;
 
   return (
     <>
-      {/* the code also appears on the robot's screen in the picture */}
-      <At left={88} top={226} width={198} height={60}>
-        <Text style={{ color: '#FFF', fontSize: s(30), fontWeight: '700', textAlign: 'center', letterSpacing: s(6), fontVariant: ['tabular-nums'] }}>
-          {`${shown.slice(0, 3)} ${shown.slice(3)}`}
-        </Text>
-      </At>
-
       <GradientText left={35} top={536} width={340} size={32}>
         Enter your code
       </GradientText>

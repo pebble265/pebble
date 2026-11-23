@@ -13,6 +13,8 @@ export interface User {
   birthYear?: number | null;
   /** null until the "connect your pebble(a)" screens are done */
   robotSetupAt?: string | null;
+  /** first-run screens done; the robot waits on "ready soon" until then */
+  appSetupDoneAt?: string | null;
   createdAt: string;
   /** false for accounts made with Apple / Google */
   hasPassword?: boolean;

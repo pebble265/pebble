@@ -29,6 +29,8 @@ export class AuditInterceptor implements NestInterceptor {
 
     const route = `${method} ${(req.baseUrl || '') + (req.route?.path ?? req.path)}`;
     if (SKIP.has(route)) return next.handle();
+    // hardware test screen repeats commands several times a second: not worth a row each
+    if (route === 'POST /devices/:id/command' && (req.body as { action?: string } | undefined)?.action === 'test') return next.handle();
 
     const started = Date.now();
     const write = (ok: boolean, status: number, body?: unknown, err?: unknown) => {

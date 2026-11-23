@@ -1,0 +1,189 @@
+"""REST client for the pebble backend (robot routes, device token)."""
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from email.utils import parsedate_to_datetime
+from typing import Any
+
+import aiohttp
+
+log = logging.getLogger("api")
+
+TOKEN_REFRESH_SECONDS = 50 * 60  # token lasts 1 h
+
+
+class ApiError(Exception):
+    def __init__(self, status: int, message: str):
+        super().__init__(f"HTTP {status}: {message}")
+        self.status = status
+
+
+class Api:
+    def __init__(self, base_url: str, serial: str, secret: str):
+        self.base = base_url
+        self.serial = serial
+        self.secret = secret
+        self.token: str | None = None
+        self.token_at = 0.0
+        self._paired = False
+        # set whenever `paired` flips, so the pairing loop reacts at once instead of on its next poll
+        self.paired_changed = asyncio.Event()
+        # server clock minus Pi clock, in seconds (the Pi has no RTC, its clock can be off)
+        self.clock_skew = 0.0
+        self._session: aiohttp.ClientSession | None = None
+        self._login_lock = asyncio.Lock()
+
+    async def session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            # ngrok / proxies drop idle keep-alive sockets after a while; never reuse one
+            # that has been idle long enough to be dead (that showed up as random "disconnects").
+            self._session = aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(keepalive_timeout=10, ttl_dns_cache=300),
+                timeout=aiohttp.ClientTimeout(total=20, connect=10),
+                headers={"ngrok-skip-browser-warning": "1", "User-Agent": "pebble-pi"},
+            )
+        return self._session
+
+    @property
+    def paired(self) -> bool:
+        return self._paired
+
+    @paired.setter
+    def paired(self, value: bool) -> None:
+        value = bool(value)
+        if value != self._paired:
+            self._paired = value
+            self.paired_changed.set()
+
+    def _note_clock(self, r: aiohttp.ClientResponse) -> None:
+        try:
+            server = parsedate_to_datetime(r.headers["Date"]).timestamp()
+            self.clock_skew = server - time.time()
+        except Exception:
+            pass
+
+    async def close(self):
+        if self._session:
+            await self._session.close()
+
+    # -------------------------------------------------------------- auth
+    async def login(self) -> None:
+        async with self._login_lock:
+            await self._login()
+
+    async def _login(self) -> None:
+        if True:
+            s = await self.session()
+            async with s.post(
+                f"{self.base}/robot/auth",
+                json={"serialNumber": self.serial, "secret": self.secret},
+            ) as r:
+                body = await self._body(r)
+                self._note_clock(r)
+                if r.status != 200:
+                    raise ApiError(r.status, str(body))
+            self.token = body["accessToken"]
+            self.token_at = time.monotonic()
+            self.paired = bool(body.get("paired"))
+            log.info("logged in (paired=%s)", self.paired)
+
+    def _stale(self) -> bool:
+        return not self.token or time.monotonic() - self.token_at > TOKEN_REFRESH_SECONDS
+
+    async def ensure_token(self) -> str:
+        if self._stale():
+            async with self._login_lock:
+                if self._stale():  # another task may have just logged in
+                    await self._login()
+        return self.token  # type: ignore[return-value]
+
+    # -------------------------------------------------------------- requests
+    async def request(self, method: str, path: str, json: Any = None, timeout: float | None = None) -> Any:
+        # A dropped pooled connection or a one-off 502/503/504 from the tunnel is not
+        # "offline": retry a couple of times before giving up.
+        for net_try in range(3):
+            try:
+                return await self._request_once(method, path, json, timeout)
+            except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
+                if net_try == 2:
+                    raise
+                log.debug("retrying %s %s after %s", method, path, type(e).__name__)
+            except ApiError as e:
+                if e.status not in (502, 503, 504) or net_try == 2:
+                    raise
+            await asyncio.sleep(1.5 * (net_try + 1))
+        raise RuntimeError("unreachable")
+
+    async def _request_once(self, method: str, path: str, json: Any, timeout: float | None) -> Any:
+        for attempt in range(2):
+            token = await self.ensure_token()
+            s = await self.session()
+            async with s.request(
+                method,
+                f"{self.base}{path}",
+                json=json,
+                headers={"Authorization": f"Bearer {token}"},
+                **({"timeout": aiohttp.ClientTimeout(total=timeout)} if timeout else {}),
+            ) as r:
+                body = await self._body(r)
+                self._note_clock(r)
+                if r.status == 401 and attempt == 0:
+                    self.token = None  # expired or revoked -> log in again once
+                    continue
+                if r.status >= 400:
+                    msg = body.get("message") if isinstance(body, dict) else body
+                    raise ApiError(r.status, str(msg))
+                return body
+        raise ApiError(401, "unauthorized")
+
+    @staticmethod
+    async def _body(r: aiohttp.ClientResponse) -> Any:
+        if r.status == 204:
+            return None
+        try:
+            return await r.json(content_type=None)
+        except Exception:
+            return await r.text()
+
+    # -------------------------------------------------------------- robot routes
+    async def pairing_code(self) -> dict:
+        return await self.request("POST", "/robot/pairing-code", timeout=12)
+
+    async def heartbeat(self, battery: int | None, status: str, fw: str) -> dict:
+        body = {"status": status, "firmwareVersion": fw[:20]}
+        if battery is not None:  # unknown (ESP32 not linked): leave the last reading on the server
+            body["batteryLevel"] = max(0, min(100, int(battery)))
+        res = await self.request("POST", "/robot/heartbeat", body)
+        self.paired = bool(res.get("paired"))
+        return res
+
+    async def me(self) -> dict:
+        res = await self.request("GET", "/robot/me")
+        self.paired = bool(res.get("paired"))
+        return res
+
+    async def doses_today(self) -> dict:
+        return await self.request("GET", "/robot/doses/today")
+
+    async def dispensed(self, dose_id: str) -> dict:
+        return await self.request("POST", f"/robot/doses/{dose_id}/dispensed")
+
+    async def take(self, dose_id: str, via: str = "robot_button") -> dict:
+        return await self.request("POST", f"/robot/doses/{dose_id}/take", {"via": via})
+
+    async def chat(self, message: str, conversation_id: str | None) -> dict:
+        body: dict[str, Any] = {"message": message[:2000]}
+        if conversation_id:
+            body["conversationId"] = conversation_id
+        return await self.request("POST", "/robot/chat/messages", body)
+
+    async def mood(self, score: int) -> dict:
+        return await self.request("POST", "/robot/moods", {"score": int(score)})
+
+    async def mood_today(self) -> dict:
+        return await self.request("GET", "/robot/moods/today")
+
+    async def end_chat(self, conversation_id: str) -> None:
+        await self.request("POST", f"/robot/chat/conversations/{conversation_id}/end")

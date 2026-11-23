@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Splash } from '../components/splash';
 import { AuthProvider, useAuth } from '../lib/auth';
+import { firstSetup } from '../lib/first-setup';
 import { colors } from '../theme';
 import { ThemeProvider, useTheme } from '../lib/theme-mode';
 
@@ -60,7 +61,8 @@ function RootNavigator() {
   const signedIn = !!user;
   // First run after sign-in / sign-up: Welcome -> profile + consent -> connect the robot.
   const ready = signedIn && !!user.onboardedAt && !!user.robotSetupAt;
-  const home = !signedIn ? '/sign-in' : ready ? '/' : '/welcome';
+  // right after connecting the robot: pick medicines first, then All Set, then Home
+  const home = !signedIn ? '/sign-in' : ready ? (firstSetup.pending ? '/setup-meds' : '/') : '/welcome';
 
   return (
     <Stack
@@ -94,6 +96,8 @@ function RootNavigator() {
       {/* explicit targets, so a guarded route never falls back to the first route by name */}
       <Stack.Protected guard={ready} redirectTo={home}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="setup-meds" options={{ animation: 'fade', gestureEnabled: false }} />
+        <Stack.Screen name="all-set" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen name="medication-new" options={{ presentation: 'modal' }} />
         <Stack.Screen name="meds-manage" />
         <Stack.Screen
@@ -103,6 +107,7 @@ function RootNavigator() {
         <Stack.Screen name="brief" />
         <Stack.Screen name="chat-history" />
         <Stack.Screen name="chat-log" />
+        <Stack.Screen name="robot-test" />
         <Stack.Screen
           name="feel"
           options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}

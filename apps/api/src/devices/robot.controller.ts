@@ -14,7 +14,7 @@ import { OwnerConsentGuard } from '../privacy/consent.guard';
 import { CurrentDevice, DeviceAuthGuard } from './device-auth.guard';
 import type { AuthDevice } from './device-auth.guard';
 import { DevicesService } from './devices.service';
-import { HeartbeatDto, RobotAuthDto, RobotDoseTakeDto } from './dto/devices.dto';
+import { HeartbeatDto, RobotAuthDto, RobotDoseTakeDto, RobotTestReportDto } from './dto/devices.dto';
 
 /** Routes the ROBOT calls. */
 @Controller('robot')
@@ -46,6 +46,14 @@ export class RobotController {
   @UseGuards(DeviceAuthGuard)
   heartbeat(@CurrentDevice() device: AuthDevice, @Body() dto: HeartbeatDto) {
     return this.devices.heartbeat(device, dto);
+  }
+
+  /** POST /robot/test-report — ESP32 link state while the app's hardware test screen is open */
+  @Post('test-report')
+  @HttpCode(200)
+  @UseGuards(DeviceAuthGuard)
+  testReport(@CurrentDevice() device: AuthDevice, @Body() dto: RobotTestReportDto) {
+    return this.devices.saveTestReport(device.id, dto);
   }
 
   /** GET /robot/me — owner name, greeting, voice, face theme ... */

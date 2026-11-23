@@ -9,6 +9,7 @@ import { termsAsText, TERMS } from '../legal/terms';
 import { CryptoService } from '../crypto/crypto.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeGateway } from '../notifications/realtime.gateway';
 import { ChangePasswordDto, CompleteOnboardingDto, UpdateProfileDto } from './dto/users.dto';
 import * as argon2 from 'argon2';
 
@@ -42,6 +43,7 @@ const profileSelect = {
   phone: true,
   avatar_enc: true,
   robot_setup_at: true,
+  app_setup_done_at: true,
   created_at: true,
   password_hash: true, // only to report hasPassword, never returned
 } as const;
@@ -52,6 +54,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly crypto: CryptoService,
+      private readonly realtime: RealtimeGateway,
   ) {}
 
   /** Profile photo: a small JPEG as a data URL, stored encrypted. Empty string / null removes it. */
@@ -167,6 +170,22 @@ export class UsersService {
     return this.me(userId);
   }
 
+  /**
+   * The first-run screens in the app are done (medicines picked, "All Set" closed).
+   * The robot waits on "Welcome, <name>" until then, so tell it right away.
+   */
+  async finishAppSetup(userId: string) {
+    const { count } = await this.prisma.users.updateMany({
+      where: { id: userId, app_setup_done_at: null },
+      data: { app_setup_done_at: new Date() },
+    });
+    if (count) {
+      const robots = await this.prisma.devices.findMany({ where: { owner_user_id: userId }, select: { id: true } });
+      for (const r of robots) this.realtime.toDevice(r.id, 'robot:setup-done', {});
+    }
+    return this.me(userId);
+  }
+
   async emailTerms(userId: string) {
     const user = await this.prisma.users.findFirst({ where: { id: userId, deleted_at: null }, select: { email: true } });
     if (!user) throw new NotFoundException();
@@ -188,6 +207,7 @@ export class UsersService {
     phone: string | null;
     avatar_enc: Uint8Array | null;
     robot_setup_at: Date | null;
+    app_setup_done_at: Date | null;
     created_at: Date;
     password_hash: string;
   }) {
@@ -207,6 +227,8 @@ export class UsersService {
       avatar: this.crypto.decryptOptional(user.avatar_enc),
       /** null until the "connect your pebble(a)" screens are done */
       robotSetupAt: user.robot_setup_at,
+      /** null until the first-run screens in the app are done; the robot waits for this */
+      appSetupDoneAt: user.app_setup_done_at,
       createdAt: user.created_at,
       /** false for accounts made with Apple / Google (no Pebble password) */
       hasPassword: user.password_hash !== NO_PASSWORD,

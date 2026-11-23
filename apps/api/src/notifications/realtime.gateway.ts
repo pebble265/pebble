@@ -78,4 +78,13 @@ export class RealtimeGateway implements OnGatewayConnection {
   toDevice(deviceId: string, event: string, payload: unknown) {
     this.server?.to(`device:${deviceId}`).emit(event, payload);
   }
+
+  /** Is the robot's realtime socket connected right now? */
+  async deviceConnected(deviceId: string): Promise<boolean> {
+    try {
+      return ((await this.server?.in(`device:${deviceId}`).fetchSockets()) ?? []).length > 0;
+    } catch {
+      return false;
+    }
+  }
 }

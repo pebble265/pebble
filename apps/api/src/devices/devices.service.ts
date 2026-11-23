@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { createHash, randomInt, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthDevice } from './device-auth.guard';
-import { HeartbeatDto, type RobotAction } from './dto/devices.dto';
+import { HeartbeatDto, type RobotAction, type RobotTestReportDto } from './dto/devices.dto';
 import { RealtimeGateway } from '../notifications/realtime.gateway';
 
 const PAIRING_CODE_MINUTES = 10;
@@ -56,14 +56,45 @@ export class DevicesService {
    * "robot:command" { action, at } to the robot's room. Returns whether the
    * robot looked online (it may still miss it if it just dropped off).
    */
-  async command(userId: string, deviceId: string, action: RobotAction) {
+  async command(userId: string, deviceId: string, action: RobotAction, esp?: Record<string, unknown>) {
     const device = await this.prisma.devices.findFirst({
       where: { id: deviceId, owner_user_id: userId },
       select: { id: true, status: true },
     });
     if (!device) throw new NotFoundException('Robot not found');
-    this.realtime.toDevice(device.id, 'robot:command', { action, at: new Date().toISOString() });
+    this.realtime.toDevice(device.id, 'robot:command', {
+      action,
+      ...(action === 'test' && esp && { esp }),
+      at: new Date().toISOString(),
+    });
     return { sent: true, online: ['online', 'charging'].includes(device.status) };
+  }
+
+  /** Hardware test screen: last ESP32 report from each robot, kept in memory only. */
+  private readonly testReports = new Map<string, { at: Date; report: RobotTestReportDto }>();
+
+  saveTestReport(deviceId: string, report: RobotTestReportDto) {
+    this.testReports.set(deviceId, { at: new Date(), report });
+    return { ok: true };
+  }
+
+  async testStatus(userId: string, deviceId: string) {
+    const device = await this.prisma.devices.findFirst({
+      where: { id: deviceId, owner_user_id: userId },
+      select: { id: true, status: true, last_seen_at: true, firmware_version: true },
+    });
+    if (!device) throw new NotFoundException('Robot not found');
+    const socket = await this.realtime.deviceConnected(device.id);
+    const r = this.testReports.get(device.id);
+    return {
+      pi: {
+        socket, // realtime link up right now = commands reach the robot at once
+        status: device.status,
+        lastSeenAt: device.last_seen_at,
+        appVersion: device.firmware_version,
+      },
+      esp: r ? { ...r.report, reportAt: r.at } : null,
+    };
   }
 
   // =====================================================================
@@ -189,7 +220,7 @@ export class DevicesService {
     const [user, s] = await Promise.all([
       this.prisma.users.findUniqueOrThrow({
         where: { id: device.ownerUserId },
-        select: { display_name: true, timezone: true, locale: true },
+        select: { display_name: true, timezone: true, locale: true, app_setup_done_at: true },
       }),
       this.prisma.robot_settings.upsert({
         where: { user_id: device.ownerUserId },
@@ -205,6 +236,8 @@ export class DevicesService {
         displayName: user.display_name,
         timezone: user.timezone,
         locale: user.locale,
+        /** false while the owner is still in the app's first-run screens */
+        setupDone: user.app_setup_done_at !== null,
       },
       settings: {
         robotName: s.robot_name,

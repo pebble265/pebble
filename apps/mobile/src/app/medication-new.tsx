@@ -27,7 +27,7 @@ function BackButton({ onPress }: { onPress(): void }) {
 }
 
 /** Add a medicine, or edit one with ?id=… (&step=2 opens straight on the times). */
-export default function NewMedication() {
+export default function NewMedication({ first = false }: { first?: boolean } = {}) {
   useTheme();
   const params = useLocalSearchParams<{ id?: string; step?: string }>();
   const editId = params.id;
@@ -146,7 +146,8 @@ export default function NewMedication() {
           schedules: list.sort().map((time) => ({ time, ...(useDays.length < 7 && { daysOfWeek: useDays }) })),
         },
       });
-      router.back();
+      if (first) router.replace('/all-set');
+      else router.back();
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -180,13 +181,14 @@ export default function NewMedication() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView alwaysBounceVertical={false} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-          <BackButton onPress={() => router.back()} />
+          {first ? <View style={styles.back} /> : <BackButton onPress={() => router.back()} />}
 
           {step === 1 ? (
             <>
               <View style={styles.head}>
                 <MaterialCommunityIcons name="pill" size={48} color={colors.text} style={{ transform: [{ rotate: '-35deg' }] }} />
                 <Text style={styles.title}>{editId ? 'แก้ไขยา' : 'ใส่ชื่อยา\nหรือพิมพ์ค้นหา'}</Text>
+                {first && <Text style={[type.small, { textAlign: 'center' }]}>เพิ่มยาที่คุณกินก่อนเริ่มใช้งาน pebble(a) จะได้เตือนให้ตรงเวลา</Text>}
               </View>
 
               <View style={styles.darkInput}>
@@ -225,6 +227,11 @@ export default function NewMedication() {
               </View>
               <ErrorText>{error}</ErrorText>
               <Button title="ถัดไป · ตั้งเวลากินยา" onPress={next} />
+              {first && (
+                <Pressable onPress={() => router.replace('/all-set')} accessibilityRole="button" style={{ alignSelf: 'center', padding: space.sm }}>
+                  <Text style={[type.small, { textDecorationLine: 'underline' }]}>ยังไม่มียาที่ต้องกิน? ข้ามไปก่อน</Text>
+                </Pressable>
+              )}
             </>
           ) : null}
         </ScrollView>
